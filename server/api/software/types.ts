@@ -9,6 +9,7 @@ export interface SoftwareProviderCapabilities {
   emulationAcquisition: boolean;
   requestActions: { retry: boolean; cancel: boolean };
   assetStreaming: boolean;
+  assetBundles?: boolean;
 }
 
 export interface SoftwareProviderHandshake {
@@ -39,11 +40,18 @@ export interface SoftwareCatalogGame {
   platforms: string[];
   platformOptions: { id?: number; key?: string; name: string }[];
   genres: string[];
+  /** Steam App ID from the IGDB Steam store link, when available. */
+  steamAppId?: number | null;
   rating?: number | null;
   publishers?: string[];
   developers?: string[];
   screenshots?: string[];
   videos?: { name: string; videoId: string }[];
+  timeToBeat?: {
+    hastily?: number;
+    normally?: number;
+    completely?: number;
+  } | null;
   source?: 'IGDB' | 'DAT';
   dat?: {
     name: string;
@@ -79,6 +87,7 @@ export interface SoftwareAsset {
 export interface SoftwareAssetsResponse {
   assets: SoftwareAsset[];
   bundleSupported: boolean;
+  bundleName?: string;
 }
 
 export type PcOperatingSystem = 'windows' | 'linux' | 'macos';

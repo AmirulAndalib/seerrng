@@ -482,6 +482,12 @@ describe('software request routes', () => {
       'getCatalogGame',
       async () => ({
         ...pcGame,
+        steamAppId: 570,
+        timeToBeat: {
+          hastily: 1.5,
+          normally: 24.25,
+          completely: Number.POSITIVE_INFINITY,
+        },
         coverUrl: 'https://evil.example/cover.jpg',
         rating: 87,
         screenshots: [
@@ -504,6 +510,11 @@ describe('software request routes', () => {
     assert.strictEqual(response.body.game.title, 'Test Game');
     assert.strictEqual(response.body.game.coverUrl, '');
     assert.strictEqual(response.body.game.rating, 8.7);
+    assert.strictEqual(response.body.game.steamAppId, 570);
+    assert.deepStrictEqual(response.body.game.timeToBeat, {
+      hastily: 1.5,
+      normally: 24.25,
+    });
     assert.deepStrictEqual(response.body.game.screenshots, [
       'https://images.igdb.com/igdb/image/upload/screenshot.jpg',
     ]);
@@ -1837,5 +1848,66 @@ describe('software request routes', () => {
       .set('Range', 'bytes=100-');
     assert.strictEqual(invalidRange.status, 416);
     assert.strictEqual(invalidRange.headers['content-range'], 'bytes */8');
+  });
+
+  it('streams Questarr bundles as request-scoped gzip downloads', async () => {
+    const saved = await createSoftwareRequest({
+      provider: 'questarr',
+      status: 'available',
+      externalRequestId: 'seerrng:software:bundle',
+    });
+    mock.method(
+      QuestarrNGAPI.prototype,
+      'getRequest',
+      async (externalRequestId: string) =>
+        acceptedRequest(externalRequestId, 'available')
+    );
+    mock.method(QuestarrNGAPI.prototype, 'getAssets', async () => ({
+      assets: [
+        { id: 'asset-1', name: 'part-1.zip', size: 4, url: '' },
+        { id: 'asset-2', name: 'part-2.zip', size: 4, url: '' },
+      ],
+      bundleSupported: true,
+      bundleName: 'Test Game.tar.gz',
+    }));
+    let streamCalls = 0;
+    mock.method(
+      QuestarrNGAPI.prototype,
+      'streamBundle',
+      async (externalRequestId: string) => {
+        streamCalls += 1;
+        assert.strictEqual(externalRequestId, saved.externalRequestId);
+        return {
+          stream: Readable.from([Buffer.from('gzip')]),
+          filename: '../evil.exe',
+          contentLength: -1,
+          contentType: 'text/html',
+          rangeSupported: true,
+          statusCode: 206,
+          contentRange: 'bytes 0-3/4',
+        };
+      }
+    );
+
+    const outsider = await request(createApp(3, Permission.REQUEST)).get(
+      `/request/software/status/${saved.id}/bundle`
+    );
+    assert.strictEqual(outsider.status, 404);
+
+    const download = await request(createApp())
+      .get(`/request/software/status/${saved.id}/bundle`)
+      .set('Range', 'bytes=0-3');
+    assert.strictEqual(download.status, 200);
+    assert.match(download.headers['content-disposition'], /attachment/);
+    assert.match(
+      decodeURIComponent(download.headers['content-disposition']),
+      /\.\._evil\.exe\.tar\.gz/
+    );
+    assert.match(download.headers['content-type'], /^application\/gzip/);
+    assert.strictEqual(download.headers['content-length'], undefined);
+    assert.strictEqual(download.headers['accept-ranges'], undefined);
+    assert.strictEqual(download.headers['content-range'], undefined);
+    assert.strictEqual(download.body.toString('utf8'), 'gzip');
+    assert.strictEqual(streamCalls, 1);
   });
 });
