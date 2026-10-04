@@ -181,6 +181,20 @@ export interface ReadarrSettings extends DVRSettings {
   serviceType?: 'ebook' | 'audiobook';
 }
 
+export interface AudiobookshelfSettings {
+  id: number;
+  name: string;
+  hostname: string;
+  port: number;
+  apiKey: string;
+  useSsl: boolean;
+  baseUrl?: string;
+  externalUrl?: string;
+  libraryId: string;
+  libraryName: string;
+  syncEnabled: boolean;
+}
+
 export interface CollectorServiceSettings {
   id: number;
   name: string;
@@ -556,6 +570,7 @@ export interface AllSettings {
   sonarr: SonarrSettings[];
   lidarr: LidarrSettings[];
   readarr: ReadarrSettings[];
+  audiobookshelf?: AudiobookshelfSettings | null;
   mylar: MylarSettings[];
   kapowarr: KapowarrSettings[];
   backissue: BackIssueSettings[];
@@ -671,6 +686,7 @@ class Settings {
       sonarr: [],
       lidarr: [],
       readarr: [],
+      audiobookshelf: null,
       mylar: [],
       kapowarr: [],
       backissue: [],
@@ -1151,6 +1167,14 @@ class Settings {
     this.data.readarr = data;
   }
 
+  get audiobookshelf(): AudiobookshelfSettings | null {
+    return this.data.audiobookshelf ?? null;
+  }
+
+  set audiobookshelf(data: AudiobookshelfSettings | null) {
+    this.data.audiobookshelf = data;
+  }
+
   get sonarr(): SonarrSettings[] {
     return this.data.sonarr;
   }
@@ -1548,6 +1572,7 @@ class Settings {
       sonarr: [],
       lidarr: [],
       readarr: [],
+      audiobookshelf: null,
       mylar: [],
       kapowarr: [],
       backissue: [],
