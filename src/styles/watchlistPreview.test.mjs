@@ -34,7 +34,7 @@ const ancestor = (node, predicate) => {
   return undefined;
 };
 
-test('blocked poster visibility follows management permission on filtering and rendering paths', () => {
+test('blocked poster filtering and rendering respect permission and saved visibility preference', () => {
   const card = parse('../components/TitleCard/index.tsx');
   const list = parse('../components/Common/ListView/index.tsx');
   const discover = parse('../hooks/useDiscover.ts');
@@ -74,16 +74,23 @@ test('blocked poster visibility follows management permission on filtering and r
     (node) =>
       ts.isCallExpression(node) && node.expression.getText().endsWith('.filter')
   )[0].arguments[0];
-  const discoverGate = nodes(
-    discover,
-    (node) =>
-      ts.isIfStatement(node) &&
-      node.expression.getText().includes('hideBlocklisted') &&
-      node.expression.getText().includes('canManageBlocklist') &&
-      node.expression
-        .getText()
-        .includes('settings.currentSettings.hideBlocklisted')
-  )[0];
+  const discoverGate = nodes(discover, (node) => {
+    if (!ts.isIfStatement(node)) return false;
+
+    const identifiers = nodes(node.expression, ts.isIdentifier).map(
+      (identifier) => identifier.text
+    );
+    const propertyPaths = nodes(
+      node.expression,
+      ts.isPropertyAccessExpression
+    ).map((access) => access.getText());
+
+    return (
+      identifiers.includes('hideBlocklisted') &&
+      identifiers.includes('canManageBlocklist') &&
+      propertyPaths.includes('settings.currentSettings.hideBlocklisted')
+    );
+  })[0];
   assert.ok(discoverGate);
   const renderGate = nodes(
     card,
@@ -94,19 +101,6 @@ test('blocked poster visibility follows management permission on filtering and r
   )[0];
   assert.ok(renderGate);
   for (const canManageBlocklist of [false, true]) {
-    for (const hidePreference of [false, true]) {
-      const filter = evaluate(listFilter, {
-        canManageBlocklist,
-        currentSettings: { hideBlocklisted: hidePreference },
-        MediaStatus: statuses,
-      });
-      assert.equal(
-        filter({ mediaInfo: { status: statuses.BLOCKLISTED } }),
-        canManageBlocklist && !hidePreference
-      );
-      assert.equal(filter({ mediaInfo: { status: statuses.AVAILABLE } }), true);
-      assert.equal(filter({}), true);
-    }
     assert.equal(
       evaluate(renderGate.expression, {
         currentStatus: statuses.BLOCKLISTED,
@@ -116,20 +110,57 @@ test('blocked poster visibility follows management permission on filtering and r
       !canManageBlocklist
     );
   }
+  // Each row is [permission, saved hide preference, blocked item remains visible].
+  const listCases = [
+    [false, false, false],
+    [false, true, false],
+    [true, false, true],
+    [true, true, false],
+  ];
+  for (const [
+    canManageBlocklist,
+    savedPreference,
+    remainsVisible,
+  ] of listCases) {
+    const filter = evaluate(listFilter, {
+      canManageBlocklist,
+      currentSettings: { hideBlocklisted: savedPreference },
+      MediaStatus: statuses,
+    });
+    assert.equal(
+      filter({ mediaInfo: { status: statuses.BLOCKLISTED } }),
+      remainsVisible
+    );
+    assert.equal(filter({ mediaInfo: { status: statuses.AVAILABLE } }), true);
+    assert.equal(filter({}), true);
+  }
   // Managers bypass the default hide, but the explicit user preference still applies.
-  for (const hideBlocklisted of [false, true]) {
-    for (const canManageBlocklist of [false, true]) {
-      for (const hidePreference of [false, true]) {
-        assert.equal(
-          evaluate(discoverGate.expression, {
-            hideBlocklisted,
-            canManageBlocklist,
-            settings: { currentSettings: { hideBlocklisted: hidePreference } },
-          }),
-          hideBlocklisted && (!canManageBlocklist || hidePreference)
-        );
-      }
-    }
+  // Each row is [filter requested, can manage blocklist, saved hide preference, should filter].
+  const discoverCases = [
+    [false, false, false, false],
+    [false, false, true, false],
+    [false, true, false, false],
+    [false, true, true, false],
+    [true, false, false, true],
+    [true, false, true, true],
+    [true, true, false, false],
+    [true, true, true, true],
+  ];
+  for (const [
+    hideBlocklisted,
+    canManageBlocklist,
+    savedPreference,
+    expected,
+  ] of discoverCases) {
+    assert.equal(
+      evaluate(discoverGate.expression, {
+        hideBlocklisted,
+        canManageBlocklist,
+        settings: { currentSettings: { hideBlocklisted: savedPreference } },
+      }),
+      expected,
+      `hideBlocklisted=${hideBlocklisted}, canManageBlocklist=${canManageBlocklist}, savedPreference=${savedPreference}`
+    );
   }
   assert.doesNotMatch(card.getText(), /wasBlocklistedHere/);
   const removeHandler = nodes(
