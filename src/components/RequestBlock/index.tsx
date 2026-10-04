@@ -11,10 +11,6 @@ import Tooltip from '@app/components/Common/Tooltip';
 import useRequestOverride from '@app/hooks/useRequestOverride';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import {
-  normalizeMusicBrainzId,
-  normalizeOpenLibraryWorkId,
-} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   CalendarIcon,
@@ -25,6 +21,7 @@ import {
   UserIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
+import type { MediaType } from '@server/constants/media';
 import { MediaRequestStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
@@ -56,16 +53,25 @@ const messages = defineMessages('components.RequestBlock', {
   delete: 'Delete Request',
 });
 
-interface RequestBlockProps {
+export type RequestBlockMediaIdentity =
+  | { mediaType: MediaType.MOVIE | MediaType.TV; tmdbId: number }
+  | { mediaType: MediaType.MUSIC; mbId: string }
+  | { mediaType: MediaType.BOOK; bookId: string }
+  | { mediaType: MediaType.COMIC; comicId: string }
+  | { mediaType: MediaType.MAGAZINE; magazineTitle: string };
+
+type RequestBlockProps = {
   request: MediaRequest;
   onUpdate?: () => void;
   hideDeleteAction?: boolean;
-}
+} & RequestBlockMediaIdentity;
 
 const RequestBlock = ({
   request,
+  mediaType,
   onUpdate,
   hideDeleteAction = false,
+  ...mediaIdentity
 }: RequestBlockProps) => {
   const { user } = useUser();
   const intl = useIntl();
@@ -73,16 +79,6 @@ const RequestBlock = ({
   const [showEditModal, setShowEditModal] = useState(false);
   const { profile, metadataProfile, rootFolder, server, languageProfile } =
     useRequestOverride(request);
-  const rawBookId = request.media?.identifiers?.find(
-    (identifier) => identifier.provider === 'openlibrary'
-  )?.value;
-  const bookId = rawBookId ? normalizeOpenLibraryWorkId(rawBookId) : undefined;
-  const musicId = request.media?.mbId
-    ? normalizeMusicBrainzId(request.media.mbId)
-    : undefined;
-  const comicId = request.media?.identifiers?.find(
-    (identifier) => identifier.provider === 'comicvine'
-  )?.value;
   const updateRequest = async (type: 'approve' | 'decline'): Promise<void> => {
     setIsUpdating(true);
     await axios.post(`/api/v1/request/${request.id}/${type}`);
@@ -108,30 +104,11 @@ const RequestBlock = ({
 
   return (
     <div className="block">
-      {request.media && showEditModal && (
+      {showEditModal && (
         <RequestModal
           show={showEditModal}
-          tmdbId={
-            request.type === 'music' ||
-            request.type === 'book' ||
-            request.type === 'comic'
-              ? undefined
-              : request.media.tmdbId
-          }
-          mbId={request.type === 'music' ? musicId : undefined}
-          bookId={request.type === 'book' ? bookId : undefined}
-          comicId={request.type === 'comic' ? comicId : undefined}
-          type={
-            request.type === 'music'
-              ? 'music'
-              : request.type === 'book'
-                ? 'book'
-                : request.type === 'comic'
-                  ? 'comic'
-                  : request.type === 'tv'
-                    ? 'tv'
-                    : 'movie'
-          }
+          {...mediaIdentity}
+          type={mediaType}
           is4k={request.is4k}
           editRequest={request}
           onCancel={() => setShowEditModal(false)}
@@ -233,6 +210,7 @@ const RequestBlock = ({
                     buttonType="warning"
                     onClick={() => setShowEditModal(true)}
                     disabled={isUpdating}
+                    aria-label={intl.formatMessage(messages.edit)}
                   >
                     <PencilIcon className="icon-sm" />
                   </Button>
