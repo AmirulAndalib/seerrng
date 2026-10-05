@@ -164,3 +164,46 @@ it('opens the movie edit modal when the detail API omits the request media back-
     editRequest: request,
   });
 });
+
+it('opens the book edit modal from the external detail identity without a media back-reference', async () => {
+  const request = {
+    id: 30,
+    type: MediaType.BOOK,
+    status: MediaRequestStatus.PENDING,
+    requestedBy: { id: 7, displayName: 'Test User', avatar: '' },
+    is4k: false,
+    createdAt: new Date('2026-10-04T12:00:00.000Z'),
+    seasons: [],
+    media: undefined,
+    bookFormat: 'audiobook',
+  } as unknown as MediaRequest;
+
+  await act(async () =>
+    root.render(
+      <IntlProvider locale="en">
+        <RequestBlock
+          request={request}
+          mediaType={MediaType.BOOK}
+          bookId="OL123W"
+        />
+      </IntlProvider>
+    )
+  );
+
+  const editButton = host.querySelector<HTMLButtonElement>(
+    'button[data-button-type="warning"]'
+  );
+  expect(editButton).not.toBeNull();
+
+  await act(async () => editButton!.click());
+
+  expect(
+    host.querySelector('[data-testid="edit-request-modal"]')
+  ).not.toBeNull();
+  expect(state.modalProps).toMatchObject({
+    show: true,
+    type: MediaType.BOOK,
+    bookId: 'OL123W',
+    editRequest: request,
+  });
+});

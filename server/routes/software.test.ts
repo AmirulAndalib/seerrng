@@ -74,6 +74,7 @@ const providerSettings = () => {
     emulationCatalogProvider: 'questarr',
     emulationSystemGroups: { nes: 'retro' },
     emulationPlatformMappings: {},
+    steamApiKey: '',
   };
 };
 
@@ -621,6 +622,45 @@ describe('software request routes', () => {
       assetStreaming: true,
     });
     assert.strictEqual(oldCamelCasePath.status, 404);
+  });
+
+  it('redacts the Steam Web API key from software settings responses', async () => {
+    const app = createOpenApiValidatedSettingsApp();
+    getSettings().softwareAcquisition.steamApiKey = 'steam-private-test-key';
+
+    const response = await request(app).get(
+      '/api/v1/settings/software-acquisition'
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.steamApiKey, '[REDACTED]');
+    assert.equal(response.body.steamApiKeyConfigured, true);
+    assert.doesNotMatch(
+      JSON.stringify(response.body),
+      /steam-private-test-key/
+    );
+  });
+
+  it('saves and clears the Steam Web API key without returning its value', async () => {
+    const app = createOpenApiValidatedSettingsApp();
+    const saved = await request(app)
+      .put('/api/v1/settings/software-acquisition')
+      .send({ steamApiKey: 'steam-new-private-key' });
+
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.steamApiKey, '[REDACTED]');
+    assert.equal(saved.body.steamApiKeyConfigured, true);
+    assert.equal(
+      getSettings().softwareAcquisition.steamApiKey,
+      'steam-new-private-key'
+    );
+
+    const cleared = await request(app)
+      .put('/api/v1/settings/software-acquisition')
+      .send({ steamApiKey: '' });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.steamApiKey, '');
+    assert.equal(cleared.body.steamApiKeyConfigured, false);
   });
 
   it('accepts the current QuestarrNG handshake without optional capabilities', async () => {

@@ -359,3 +359,194 @@ John explicitly waived another compile and requested tests only for the amended
 source. A fresh source-bound engine run and static checks must establish that
 amendment's actual result before publication. No production deployment or merge
 of Keith's PR is authorized by this overnight finalization request.
+
+## Cumulative issue and dirty-worktree integration — October 4, 2026
+
+The isolated candidate is `codex/release-integration-159-160-20261004`, based on
+`origin/main` at `06fbbce72` plus all audited project-origin branches. The edit
+request regression was committed as `b8b9be2ba`; the remaining cumulative
+worktree patch from the `reader-groupings` checkout is preserved at
+`/tmp/seerrng-reader-groupings-all-dirty.patch` (SHA-256
+`7cb33ac20ddf1e33b6b0db09f1cc8f0033acd82b491ebbe1354eb15b05e73421`). The
+recoverable ref bundle is
+`/tmp/seerrng-release-recovery-20261004/all-refs-post-advances.bundle` (SHA-256
+`957485e5da8241409c4a3586d2137cf018df055476cb77217a803a7175e509f8`, recorded in the recovery ledger). Do not treat its original
+conflicted apply as an integrated or verified state.
+
+The candidate combines the per-user IMDb/Goodreads list work for #159, the
+QuestarrNG search fallback for #160, the edit-request media identity fix, game
+library and household sharing, Steam linking/import, Reader Delivery groupings,
+request-count refresh, Audiobookshelf scan bounds, support-link update, and
+other dirty test/documentation work. The `seerr-api.yml` merge preserves the
+candidate's current API contract and adds the new Reader Delivery and Game
+Library paths/schemas; settings now include both Steam secret redaction and
+ROMarrNG platform mapping fields. Unique auxiliary test diffs and stale
+recovery snapshots still require comparison before final validation.
+
+The edit-request regression has a baseline/fixed Playwright reproduction using
+separate built trees and seeded SQLite databases on kspls0 loopback ports. The
+baseline click left one dialog mounted; the fixed candidate opened a second
+`Edit Request` dialog with the pending Movie request. The corresponding captures
+are `/tmp/seerrng-release-recovery-20261004/edit-request-before.png` and
+`/tmp/seerrng-release-recovery-20261004/edit-request-after.png`. Focused Vitest
+and lint passed for that committed fix. This does not establish final candidate
+integration, full-gate success, or human visual acceptance.
+
+All further browser, database, and service checks use isolated candidate copies
+on kspls0 loopback. Do not target its SeerrNG production service on port 5055,
+production databases, configured provider accounts, or household data. Issue
+#159/#160 baseline/fixed UI reproductions, issue-specific regression suites,
+security review of the imported changes, the complete pinned
+`pnpm validate:development` gate, final build, and exact-candidate visual review
+remain pending. No current cumulative gate is claimed. The human visual
+acceptance gate remains outstanding for the new interface work.
+
+The security review found two unbounded reads in the imported integration:
+household sharing materialized every explicitly shared game before paging, and
+the scheduled external-list sync loaded every configured list at once. The
+shared-game query now reads at most 20,001 entries and returns a documented
+service error above the 20,000-entry limit; scheduled list sync now pages by
+increasing row ID in batches capped at 100. Focused regressions cover the shared
+limit and processing across successive batches. These protections are code
+changes, not yet cumulative-gate evidence.
+
+## kspls0 source validation update — October 4, 2026
+
+John directed that application tests, browser checks and builds for this
+project run on `kspls0`. The finalization work has followed that target; no test
+or build command has run on `kspld0`. The current integration source is based on
+candidate merge commit `9e9a816c25c4a0045554e626a645e59d01e54b1e`, with 82 tracked
+working-tree paths preserved on top (12,266 insertions and 83 deletions including
+this record). `origin/main` is `4665245f97a90d546a94eb25fdcd4c91104bfd7b`; all
+project-owned `origin/*`, local feature, and GitLab mirror branch tips are
+ancestors of the candidate. The two local pre-rebase recovery refs and the 96
+divergent `pr-author/*` and `upstream/*` refs are historical/external source
+branches and are not merged into this fork candidate. The intervening origin
+commit updates the YunoHost manifest to v3.51.0; both referenced release asset
+SHA-256 digests were verified against the published GitHub release. This ref
+inventory is documented for maintainer scope review before publication.
+
+The first kspls0 preview used a `node_modules` symlink into an older baseline
+tree. Its browser and build results are retained only as diagnostic iterations,
+not as final-candidate evidence. A new candidate snapshot was copied from every
+tracked working-tree path and installed from its pinned lockfile in isolation.
+The focused issue regressions passed there: 76 Node tests across 8 suites for
+request-list, software-search and settings contracts (zero failures, skips or
+todos), plus 2/2 `RequestBlock` Vitest tests. That Node run covers per-user list
+ownership, public URL validation, bounded scheduled sync, Questarr paged-search
+fallback and the visible transport-error path.
+
+The isolated kspls0 toolchain is Linux x86_64, Node `v24.21.0`, pnpm `10.24.0`,
+with `pnpm-lock.yaml` SHA-256
+`40cb5a6475750b19ec14a381df9ad13ec06b02fa37d9782240cb60da6c877830`. The
+source-specific read-only `pnpm validate:development --plan --json` on the exact
+staged and unstaged source snapshot discovered 579 files: 101 Vitest, 387 native
+TypeScript, 58 native JavaScript and 33 Linux tooling files; there are no
+platform exclusions in this Linux plan. Plan SHA-256 is
+`71229966766ee4551321b70e1bc9250b866a8d0a42e1465ae799f21a1966cae8`. The
+snapshot uses the complete candidate history/ref bundle (445 local, remote and
+tag refs) plus separate index/worktree patches; its 3,325 tracked-source hashes,
+modes, Git index and dirty status were compared byte-for-byte with the
+integration worktree. The comprehensive runner has not been executed.
+
+Before final validation, preserve both the source snapshot and exact Git
+metadata, review the regenerated plan, expected-case inventory, dependency and
+runtime hashes, and invocation details with the maintainer. The earlier issue
+screenshots and build are iteration evidence only because their dependency link
+did not satisfy the repository's source-isolation preflight. Fresh baseline and
+fixed Playwright runs, the final build, complete validation gate, security
+review of all integrated changes, exact-candidate visual acceptance and release
+checks remain pending. No full-gate or release result is claimed.
+
+## Complete local-branch integration and kspls0 candidate — October 4, 2026
+
+The review candidate now includes the additional local project branch
+`codex/reader-groupings-20261004` (tip `bace25a5e2146782a57a4268f0c60f6bcae461c3`)
+as its second parent, together with all 82 paths from the preserved dirty source
+layer. The integration tree is `c60902bbbbeb996774fb16ea55c6687b3dc9b216` in
+validation snapshot commit `f23e8e9936e3d41cf03f81b3fd0e83f536b009c1`; its
+other parent is `9e9a816c25c4a0045554e626a645e59d01e54b1e`. This snapshot is a
+transfer and review identity, not a published commit. The local worktree and
+index have no unresolved merge paths.
+
+The 28 dirty paths that differ from the incoming branch were reconciled against
+the current dirty source. They retain the newer Questarr/ROMarr DAT and platform
+mapping contract, the explicit Edit Request media-identity props, and the current
+security hardening. In particular, scheduled external-list sync is paged in
+batches capped at 100; shared-game aggregation reads at most 20,001 rows and
+returns a controlled limit error above 20,000; Steam keys remain redacted; and
+Reader Delivery settings continue to require administrator permission. Branch
+regressions for bounded sync, shared-library limits, settings permission and
+edit requests without a media back-reference are retained.
+
+Branch scope: current `origin/main` is `4665245f97a90d546a94eb25fdcd4c91104bfd7b`.
+Project-owned `origin/*` tips and the GitLab mirror are already ancestors. The
+reader-groupings feature branch is integrated above. The two pre-rebase recovery
+refs remain recovery points; 96 `pr-author/*` and `upstream/*` refs belong to
+external contributor/upstream histories and are not project feature branches to
+merge into this fork.
+
+The complete Git bundle was checked out on kspls0 at
+`/tmp/seerrng-validation-final-merged-kspls0-20261004`. Its Git tree is
+`c60902bbbbeb996774fb16ea55c6687b3dc9b216`; the lockfile digest is
+`40cb5a6475750b19ec14a381df9ad13ec06b02fa37d9782240cb60da6c877830`. The
+runtime there is Node `v24.21.0` with pnpm `10.24.0`; the frozen install
+completed, with pnpm's existing ignored-build-script warning for `@scarf/scarf`
+and `unrs-resolver` preserved. Native Linux tooling, including Docker, SQLite,
+Python, Perl, tar, rsync, curl, zip/unzip and 7-Zip, is present on kspls0.
+
+The fresh development-validation plan on that exact source discovers 579
+selected files and zero exclusions: 101 Vitest, 387 native TypeScript, 58 native
+JavaScript and 33 tooling files across 12 ordered steps. Structured plan SHA-256:
+`ae0da149675ca6f7378fea0d0f059a150ea0f1f23e33c4f2b79e1bd7e00fda2a`;
+expected-case inventory SHA-256:
+`20259a5da1feb44cbc8bf35de0a18b8bc0f26eb940774f2e7a70836235805cfb`. This is
+discovery only. Final issue-focused reproductions, the cumulative gate, the
+final build and visual acceptance remain pending; no test or build has been run
+on kspld0 for this task.
+
+## Issue reproductions and contract correction — October 4, 2026
+
+Headless Playwright reproductions were run on kspls0 against an isolated
+baseline (`origin/main` at `4665245f97a90d546a94eb25fdcd4c91104bfd7b`) and the
+integrated candidate. All `/api/v1` calls were mocked and requests to other
+origins were blocked.
+
+- Edit Request: with `request.media` absent, the baseline pencil click left only
+  the management panel open; the candidate opened the “Pending Movie Request”
+  editor. Desktop and 390 px runs reproduced the same result.
+- Issue #159: the baseline profile settings page had no external-list section;
+  the candidate accepted an IMDb watchlist URL, displayed the saved list, and
+  showed the mocked sync summary “1 requested, 0 already requested, 0 not
+  found, 0 failed.” Desktop and 390 px runs completed without page errors; the
+  390 px document width equaled the viewport width.
+- Issue #160: with the same Prison Architect search, a mocked 502 produced the
+  reported catalog error on baseline, while the candidate displayed the
+  unpaged result. Desktop and 390 px runs completed without page errors. The
+  native route regression separately exercises a 502 paged result followed by
+  valid unpaged data, and confirms unrelated transport errors still propagate.
+
+The first complete gate on tree `734a9848fa3c60555a81807a9f02e503e382073a`
+passed translation extraction, batch/style checks, formatting, lint, route
+types, client types and Vitest (101 files, 461 tests). The native TypeScript
+stage reported 2,928 passed, one failed and four skipped; JavaScript and
+tooling did not run after that failure. The only failing assertion was the
+request-status OpenAPI case that supplies `mediaId`: the route already accepted
+this positive integer filter, but `seerr-api.yml` did not declare it and the
+validator returned 400. The schema now declares `mediaId` as a positive
+integer. On kspls0, the exact `server/routes/request.openapi.test.ts` suite
+passes 8/8 after that correction.
+
+The focused #159/#160 UI evidence and source review support these branch-level
+security decisions: external-list URLs remain HTTPS-only and restricted to
+IMDb/Goodreads identities; item, body, timeout and sync-batch limits remain
+bounded; imported items use the ordinary request permission/approval path;
+Steam keys remain redacted; reader settings remain administrator-only; and
+shared household game entries remain opt-in, ownership-limited and capped.
+These are source-review findings, not a claim of live provider round trips.
+
+Current source includes the OpenAPI correction and this audit entry. The fresh
+full gate on that exact source, the final build and release-note preview remain
+pending. The captured browser screenshots are iteration evidence; John’s
+desktop/narrow visual acceptance remains a release gate. No release has been
+created and no issue has been commented on or closed.

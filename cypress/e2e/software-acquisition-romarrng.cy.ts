@@ -117,6 +117,18 @@ const mockIntegrationData = () => {
       });
     } else if (pathname === '/api/v1/settings/software-acquisition') {
       request.reply(softwareSettings);
+    } else if (pathname === '/api/v1/settings/reader-delivery') {
+      request.reply({
+        grimmoryUrl: '',
+        grimmoryUsername: '',
+        grimmoryPassword: '',
+        bookorbitUrl: '',
+        bookorbitUsername: '',
+        bookorbitPassword: '',
+        preferredProvider: 'grimmory',
+      });
+    } else if (pathname === '/api/v1/settings/reader-delivery/groupings') {
+      request.reply([]);
     } else if (pathname === '/api/v1/settings/prowlarr') {
       request.reply({
         hostname: '',
@@ -255,6 +267,45 @@ describe('ROMarrNG software acquisition integration', () => {
     cy.viewport(390, 720);
     cy.reload();
     cy.contains('Metroid').should('be.visible');
+  });
+
+  it('encodes multiword catalog searches for OpenAPI validation', () => {
+    cy.intercept(
+      'GET',
+      '/api/v1/request/software/catalog/search*',
+      (request) => {
+        expect(request.url).to.include('q=Prison%20Architect');
+        request.reply({
+          body: {
+            results: [
+              {
+                ...catalogGame,
+                id: 'igdb:697',
+                catalogProvider: 'igdb',
+                catalogId: '697',
+                igdbId: 697,
+                title: 'Prison Architect',
+                platforms: ['PC (Microsoft Windows)'],
+                platformOptions: [{ id: 6, name: 'PC (Microsoft Windows)' }],
+              },
+            ],
+            nextCursor: null,
+          },
+        });
+      }
+    ).as('prisonArchitectSearch');
+
+    cy.viewport(1280, 720);
+    cy.visit('/software');
+    cy.contains('button', 'PC Games').click();
+    cy.get('input[placeholder="Search software titles"]').type(
+      'Prison Architect'
+    );
+    cy.contains('button', 'Search').click();
+    cy.wait('@prisonArchitectSearch')
+      .its('request.url')
+      .should('include', 'q=Prison%20Architect');
+    cy.get('h3').contains('Prison Architect').should('be.visible');
   });
 
   it('shows provider-reported progress and stage on desktop and mobile widths', () => {
