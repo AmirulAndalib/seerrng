@@ -7,10 +7,8 @@
 - Original recovery stash: `3b4e8dfbf9dbc20b1fc444650c3243f9b37a4d5f`.
 - Active integrated candidate: `/tmp/seerrng-reader-groupings`, branch
   `codex/reader-groupings-20261004`.
-- Current candidate base: `06fbbce72260a08f36139af5dcd94dcda0bd481f`
-  (`test: align book API key helper assertion` on current `origin/main`).
-- Pre-all-dirty-consolidation recovery stash:
-  `057219485a063805eea0aabf4f1a0ef652842e6c`.
+- Current candidate base: `86eafa28f3650dd0a088befb329b3ce018a50b17`
+  (`chore(release): prepare v3.50.0`).
 - Forward-integration checkpoints retained:
   `527b16ec5367eeaf122705bc61d086bfdd9016ad` (Audiobookshelf/ChaptarrNG) and
   `d3344bed33786af95d5b4b4a3003e604aea8265c` (v3.50.0 release preparation).
@@ -22,8 +20,7 @@
 
 - Integrated the complete upstream `e9d2e50f2b446a70e01f5b16af8bc8265ed99b3e`
   Audiobookshelf/ChaptarrNG commit and the subsequent v3.50.0 release-prep
-  commit. That checkpoint initially followed `origin/main` at `86eafa28f`; the
-  consolidated candidate was later advanced to `06fbbce72`.
+  commit. The branch is based on current `origin/main` at `86eafa28f`.
 - The upstream settings and service work overlapped `readerDelivery` and Steam
   settings. Both `audiobookshelf` and `readerDelivery` settings accessors and
   route mounts are retained. Combined Request Status, Book Details, Settings
@@ -140,52 +137,3 @@
 - Human review remains necessary for the AI-assisted contribution under
   `CONTRIBUTING.md`; the final contribution record must disclose Codex use and
   the extent of assistance.
-
-## Rebuilt rendered workflow — October 4, 2026 (Regina local)
-
-The follow-up render found a nested `main.page-layout` inside the shared app
-page shell. GameLibrary now uses the shared shell once. The production build
-passed after this layout correction at
-`/tmp/seerrng-production-build-final-20261005.log`.
-
-The final isolated Cypress flow passed **1/1** against the rebuilt bundle.
-Admin and demo each added a uniquely named manual game and explicitly shared
-it; the Play Together view showed two owners. Desktop and mobile checks covered
-1280×900 and 390×844 CSS viewports, with no page/body width overflow or visible
-content past the usable edge. Screenshots at
-`/tmp/seerrng-rendered-review-20261005/game-library/` were inspected. They are
-captured at 1280×720 and 390×720 by headless Electron, so their physical height
-does not reflect the tested CSS viewport height.
-
-The app ran from the production build with a fresh disposable SQLite database.
-The E2E flow exercises manual library and household-sharing behavior; it does
-not test live Steam authentication or call Steam, QuestarrNG, or ROMarrNG.
-Those provider round trips remain unverified. The complete development gate
-passed: 99 Vitest files/452 tests; 385 Node TypeScript files/2,912 tests (2,908
-passed and four PostgreSQL-only skips); 56 native JavaScript files/485 tests;
-32 tooling files/238 tests; 569 current-batch files; and 397/397 shared-style
-references. There were no failures or platform exclusions. The final gate log
-is `/tmp/seerrng-validate-development-final-20261005.log`. John's visual
-acceptance remains a separate release gate; neither this local render nor the
-production build replaces it.
-
-## All-dirty commit and forward-integration checkpoint
-
-- Implementation is committed as `4d2e6572a232ddb41adc3b8fbdaca6442df240b6`.
-  That commit also carries the related QuestarrNG catalog-search fallback and
-  its separate release-note fragment.
-- The required commit hook initially rejected this batch for seven ESLint
-  findings. The Cypress assertion, shared-game aggregation state, migration
-  type import, test-array types, and unused loading variable were corrected;
-  the staged ESLint and formatting hook passed before the commit was created.
-- The branch was rebased without conflicts onto `origin/main`
-  `4665245f97a90d546a94eb25fdcd4c91104bfd7b`; its only intervening change is
-  the YunoHost manifest. The source commit is now
-  `a393ab927550b5069078e24b67db2ca66c44e0cc`.
-- The rebase plan selects 99 Vitest, 385 native TypeScript, 56 native
-  JavaScript, and 32 tooling files with zero declared platform exclusions.
-  Final integrated validation, production build, and disposable browser flows
-  remain pending. The prior rendered game flow predates the aggregation
-  cleanup and must be rebuilt and rerun.
-- Steam, QuestarrNG, and ROMarrNG live round trips remain unverified. John's
-  visual acceptance remains pending and required before release.
