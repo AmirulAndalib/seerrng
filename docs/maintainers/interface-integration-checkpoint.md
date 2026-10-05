@@ -940,3 +940,11 @@ disposable Cypress runs on `kspls0`. No production source was changed by these
 test and note corrections. The final candidate must also be reviewed against
 the documented product-owner release authorization; no separate John acceptance
 is asserted here.
+
+## Forward integration of preview PR #162 — October 5, 2026
+
+PR #162 (`integration/preview-v3483-20261004`, head `8e7d81c6429830ce2143bd243977c3c8e220da81`) carries the previously accepted shared-interface work and one-time theme migration. Those application changes are already present in this broader candidate. Its distinct addition is validation-engine v1.1.0: worker capacity is based on effective logical CPU limits, with the documented operator policy and bounded explicit override. The engine uses fixed-argument Git reads and reads cgroup limits; no application authorization, provider, or database behavior changes in this addition.
+
+The PR's latest GitHub CodeQL, Cypress, unit-test, build, documentation, and release-note checks passed. The forward merge retains the broader candidate's scoped dialog assertions and game/reader shared roles rather than replacing them with stale assertions from the older PR base. Conflicts in this checkpoint, the engine README, and inventory were resolved by preserving this task's newer source/evidence ledger and carrying forward the v1.1.0 archive metadata. The prior `validation-engine-20261004.tar.gz` archive remains as historical evidence; v1.1.0 is the current engine copy.
+
+The current task explicitly authorizes merging the reviewed project-owned branches, pushing the integrated source, and cutting a release after the required gates. This supersedes older checkpoint statements that withheld merge or release authority. The final integrated tree still requires its own complete gate, build, affected browser checks, and release-note preview on `kspls0`; no new human visual acceptance or live provider round trip is claimed.
