@@ -123,10 +123,33 @@ export type EmulationSystemGroup = 'retro' | 'modern';
 export interface SoftwareAcquisitionSettings {
   romarr: SoftwareProviderSettings;
   questarr: SoftwareProviderSettings;
+  steamApiKey: string;
   emulationCatalogProvider: 'questarr' | 'romarr' | 'romarr-dat';
   emulationSystemGroups: Record<string, EmulationSystemGroup>;
   emulationPlatformMappings: Record<string, number>;
 }
+
+export type ReaderDeliveryProvider = 'grimmory' | 'bookorbit';
+
+export interface ReaderDeliverySettings {
+  grimmoryUrl: string;
+  grimmoryUsername: string;
+  grimmoryPassword: string;
+  bookorbitUrl: string;
+  bookorbitUsername: string;
+  bookorbitPassword: string;
+  preferredProvider: ReaderDeliveryProvider;
+}
+
+export const defaultReaderDeliverySettings = (): ReaderDeliverySettings => ({
+  grimmoryUrl: '',
+  grimmoryUsername: '',
+  grimmoryPassword: '',
+  bookorbitUrl: '',
+  bookorbitUsername: '',
+  bookorbitPassword: '',
+  preferredProvider: 'grimmory',
+});
 
 export interface ProwlarrSettings extends SoftwareProviderSettings {
   categoryMappings: ProwlarrCategoryMappings;
@@ -576,6 +599,7 @@ export interface AllSettings {
   backissue: BackIssueSettings[];
   lazylibrarian: LazyLibrarianSettings[];
   softwareAcquisition: SoftwareAcquisitionSettings;
+  readerDelivery: ReaderDeliverySettings;
   prowlarr: ProwlarrSettings;
   discoveryIntegrations: DiscoveryIntegrationsSettings;
   public: PublicSettings;
@@ -708,9 +732,11 @@ class Settings {
           apiKey: '',
         },
         emulationCatalogProvider: 'questarr',
+        steamApiKey: '',
         emulationSystemGroups: {},
         emulationPlatformMappings: {},
       },
+      readerDelivery: defaultReaderDeliverySettings(),
       prowlarr: {
         hostname: '',
         port: 9696,
@@ -1230,6 +1256,14 @@ class Settings {
     );
   }
 
+  get readerDelivery(): ReaderDeliverySettings {
+    return this.data.readerDelivery;
+  }
+
+  set readerDelivery(data: ReaderDeliverySettings) {
+    this.data.readerDelivery = mergeSettings(this.data.readerDelivery, data);
+  }
+
   get prowlarr(): ProwlarrSettings {
     return this.data.prowlarr;
   }
@@ -1594,9 +1628,11 @@ class Settings {
           apiKey: '',
         },
         emulationCatalogProvider: 'questarr',
+        steamApiKey: '',
         emulationSystemGroups: {},
         emulationPlatformMappings: {},
       },
+      readerDelivery: defaultReaderDeliverySettings(),
       prowlarr: {
         hostname: '',
         port: 9696,
