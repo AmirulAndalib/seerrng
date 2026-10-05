@@ -745,3 +745,198 @@ Chocolatey run `37263774763` built version 3.52.0 but received HTTP 403 from
 was not verified as published, and no source change can repair the package
 owner authorization. Other v3.52.0 publication channels are recorded in the
 release run. This channel limitation remains disclosed for the follow-up.
+
+## Issue #159/#160 and Edit Request forward integration — October 5, 2026
+
+This entry supersedes the earlier branch inventory and pending-gate statements
+for the current task. The user requested fixes for issues #159 and #160, the
+Edit Request control shown in the supplied screenshot, reproduction evidence,
+integration and security review of all project-owned branches, and eventual
+commit, push, release and issue closure. The user directed that all application
+test and build work run on `kspls0`; none of this task's tests or builds ran on
+`kspld0`.
+
+The current fetched target is `origin/main`
+`6d54a07bce12e222096a9ba5a34add8709bd39e8` (v3.52.0 YunoHost alignment).
+Forward integration starts from validation snapshot
+`1370d3bf2b359969fb46535650580f9bc07667c`, tree
+`02339ebac6e8440c987622f2c7414706fa6bab34`, whose parents are the earlier
+main merge `9e9a816c25c4a0045554e626a645e59d01e54b1e` and feature commit
+`bace25a5e2146782a57a4268f0c60f6bcae461c3`. The final merge worktree is
+`/tmp/seerrng-release-integration-159-160-forward-20261005`.
+
+The ref audit found that `origin/codex/reader-groupings-20261004` tip
+`fb50d1f70fdbe44579d89386d70bc50e9f181063` is already an ancestor of current
+`origin/main`. The tips of `origin/codex/romarrng-integration-20261004`
+(`48000359b75b2e4f4342ee669de8afb2e67fe429`),
+`origin/feat/cross-platform-setup-assistance`
+(`335abc75b9417dfa063f533df95a099ed1d5935a`),
+`origin/fix/issues-159-160` (`ead182d582df7efa235c0139ca4492b912657f06`),
+`origin/fix/request-count-badge-refresh`
+(`5c2bdd3dd34c3b93225ae6295edd95f4c5b0ac25`), and `gitlab/main`
+(`91724297ae9f65ef78047e59636363eef967ec29`) are ancestors of the r4 snapshot.
+The two local pre-rebase refs remain recovery points. The 96 `pr-author/*` and
+`upstream/*` refs are external contributor/upstream histories, not project
+branches to merge into this fork.
+
+Since the r4 snapshot, current main adds the reader-settings readability
+follow-up and its Cypress assertions, reader visual-verification record, the
+v3.52.0 release metadata, and the YunoHost version update (commits
+`752e6b651dc30cf57b7e00b5c6d3ae5a0ec1211a`,
+`532700b11958e5bd3a25a5a7dbd0810f1e3317f0`,
+`fb50d1f70fdbe44579d89386d70bc50e9f181063`, and
+`6d54a07bce12e222096a9ba5a34add8709bd39e8`). The three-way merge has applied
+the source and release changes; its only content conflict was this checkpoint.
+Resolution retains the newer main-side reader visual evidence and this task's
+issue/branch evidence. The final merged source still needs its own full gate.
+
+Headless Playwright ran on `kspls0` with `/api/v1` responses mocked and
+non-local origins blocked. The original Edit Request setup had no
+`request.media` relationship: its pencil click left only the management panel
+open. The corrected `RequestBlock` receives typed provider identity from its
+parent and mounts the editor from `showEditModal`; the same click opens the
+“Pending Movie Request” dialog. Baseline/fixed desktop captures are
+`/tmp/seerrng-edit-request-baseline-admin-20261004.png` and
+`/tmp/seerrng-edit-request-fixed-admin-20261004.png`.
+
+For #159, baseline profile settings had no external-list controls. The candidate
+accepts and displays an IMDb watchlist and returns the mocked sync summary
+“1 requested, 0 already requested, 0 not found, 0 failed.” For #160, a mocked
+502 on the paged Prison Architect search produced the original catalog error;
+the candidate falls back to the successful unpaged result. A separate route
+regression confirms unrelated transport errors remain visible. Desktop and
+390px captures are recorded as
+`/tmp/seerrng-issue159-baseline-20261004.png`,
+`/tmp/seerrng-issue159-fixed-20261004.png`,
+`/tmp/seerrng-issue160-baseline-20261004.png`, and
+`/tmp/seerrng-issue160-fixed-20261004.png`; corresponding narrow captures are
+also retained. These are mock-backed UI reproductions, not provider round trips.
+
+The issue-source security review retains HTTPS-only IMDb/Goodreads list URLs,
+bounded list/body/timeout and scheduled batches, and the normal request
+permission/approval flow for imported items. Related merged changes retain the
+20,000-entry household-game cap and ownership checks, Steam-secret redaction,
+admin-only reader settings, and software-search fallback only for the eligible
+paged-search failure case. No live provider or user database was contacted.
+
+The complete `pnpm validate:development` gate previously passed on kspls0 at r4
+tree `02339ebac6e8440c987622f2c7414706fa6bab34`, after an earlier environment
+attempt stopped because Helm was absent. Helm `v3.22.0+g144ca65` was installed
+under `/tmp` on kspls0; its archive digest matched the official release digest
+(`1e4ab49e429626cf6c6958d914248b78c9730803c2751b87627e171dc800e7bb`), and its
+seven focused security checks passed. The successful full-gate log is
+`/tmp/seerrng-validation-final-merged-20261004-gate-r4-helm-final.log` on
+kspls0. Plan: 579 selected files, zero platform exclusions. Results: Vitest
+461/461; native TypeScript 2,929 passed and four PostgreSQL-only skips; native
+JavaScript 493/493; tooling 254/254; zero failures. This r4 receipt does not
+validate the forward-merged tree.
+
+The r6 plan was generated on kspls0 at
+`/tmp/seerrng-validation-r6-plan-clean.json` (file SHA-256
+`df38be86da22e489c835eaad8f38032f10bab74e1c0737b0bcad3bacc2ff0834`, structured
+plan SHA-256 `7542d84891c54e9acec6a67f9eba66129f3e1efffc7fecac260c928070ffcaa8`,
+inventory SHA-256
+`a648afb986b24e5481f2e6e682c9cfe31422b70217e42dba696ee06be328d6d6`). It
+selects 579 files across 12 steps with zero exclusions: 101 Vitest, 387 native
+TypeScript, 58 native JavaScript, and 33 tooling-owned files. The `v3.52.0`
+release-note preview succeeded at r6. Its initial attempt caught an edit to the
+shipped game-library fragment; the published wording has been restored and the
+later re-import behavior is documented separately.
+
+GitHub published v3.52.0 at `2026-10-05T04:29:44Z`. The release body confirms
+that its existing notes and source include per-user IMDb/Goodreads importing
+(issue #159) and the QuestarrNG unpaged search fallback (issue #160). Both issue
+records are still open. R6 also changes scheduled list synchronization to
+process bounded 100-list batches; that post-tag operational change now has its
+own fragment, `2026-10-05-bounded-request-list-sync.md`. R6’s successful preview
+predates that addition and must be repeated for the final source.
+
+After this checkpoint and fragment update, regenerate the plan and release-note
+preview, run the full `pnpm validate:development` gate on that exact tree on
+kspls0, and then run its guarded production build. Issue comments, issue closure,
+push and a new release remain pending. John’s desktop/narrow visual acceptance
+remains a release gate; automated screenshots do not supply it. No live provider
+round-trip is claimed.
+
+The corrected r7 plan and release-note preview both succeeded on kspls0 before
+this documentation-only update. Plan output was
+`/tmp/seerrng-validation-r7-plan.json` (raw SHA-256
+`815ca5deddcc7ba30c4a3e0fefa425a6427b7283db733150a094b441a5577977`, structured
+plan SHA-256 `7542d84891c54e9acec6a67f9eba66129f3e1efffc7fecac260c928070ffcaa8`,
+inventory SHA-256
+`a648afb986b24e5481f2e6e682c9cfe31422b70217e42dba696ee06be328d6d6`). It
+selected 579/579 test files in 12 steps, with zero platform exclusions. The
+release preview (`/tmp/seerrng-validation-r7-release-preview.log`, SHA-256
+`4243a0645fb6e766bcfabfedd6de43587e169f380146857fc30261861a5fa25c`) included
+Setup Assistance, ROMarrNG DAT selection, bounded request-list synchronization,
+one-time theme adoption, Edit Request from detail panels, and preservation of
+game progress/privacy on re-import. This source-tree update requires a fresh
+plan and preview for its new exact tree before the full gate.
+
+## Forward-merge verification update — October 5, 2026
+
+The r8 exact snapshot passed the fresh validation plan, release-note preview,
+and complete `pnpm validate:development` gate on kspls0 before the supplementary
+Cypress run. Its commit was `916361e70d392e6c1687a633063c10db2ad6e83d`, tree
+`3667a7e38f48aee8eeb09b54903835b694de2120`, with zero platform exclusions.
+The gate passed 461 Vitest tests, 2,929 active native TypeScript tests (four
+PostgreSQL-only tests skipped), 493 native JavaScript tests, and 254 tooling
+tests. Log: `/tmp/seerrng-validation-r8-full-gate.log` on kspls0. The same
+snapshot's production build completed successfully under Node 24.21.0 and
+pnpm 10.24.0; log: `/tmp/seerrng-validation-r8-build.log`.
+
+Supplementary headless Cypress ran on kspls0 against that build, using a fresh
+temporary SQLite directory and port 55155. The reader-delivery, ROMarrNG,
+movie-details, and requests specs passed (13 tests). The game-library spec
+failed because its page-global button selector matched both the intentional
+per-game sharing control and the manual-add dialog control, which share the
+same accessible label. The browser error was selector ambiguity, not a failed
+game-library behavior assertion. The Cypress helper now scopes the ownership,
+sharing, and save controls to the active dialog. This test correction changes
+the validation candidate, so a fresh plan, release-note preview, complete
+development gate, production build, and affected Cypress run are still
+required on the exact updated tree on kspls0.
+
+Baseline/fixed Playwright issue reproductions remain mock-backed evidence; the
+captured r8 merge preserves their tested issue-source files. The new candidate
+still needs John’s desktop/narrow human visual acceptance. Push, new release,
+issue comments, and issue closure remain pending those release gates.
+
+## Latest-main forward integration — October 5, 2026
+
+While the r8 candidate was being verified, `origin/main` advanced from
+`6d54a07bce12e222096a9ba5a34add8709bd39e8` to
+`76632411a3f73d0ad4ea31cb10405496d7db474f` (`v3.52.1` release preparation).
+That tip includes `1ab58bd863cf1927b4f15851b121f8471d173c64`, which removes the
+large English catalog import from the shared app entry, retains message
+fallbacks through `defineMessages`, and adds a focused regression check. Its
+release fragment is `release-notes/initial-load-performance.md`. It also scopes
+existing Cypress settings assertions to the active dialog and fixes the reader
+settings fixture response in the Prowlarr responsive spec. Review found no
+permission, identity, provider, or database changes in this upstream delta.
+The changed Cypress helper preserves each prior field-and-description assertion;
+it only makes the active dialog the query owner.
+
+The new integration worktree is based on the fetched `origin/main` tip and
+merges the r4 feature snapshot. Source changes auto-merged; the checkpoint was
+the sole content conflict. Resolution preserves the complete current-main
+release and CI history above plus this task's branch, security, and reproduction
+evidence. The v3.52.1 Git tag points at the new main tip, but GitHub currently
+lists that release as a draft; only v3.52.0 is published. No release status is
+inferred from the existence of the tag.
+
+The r9 validation correction scopes the game-library test controls and save
+button to the active dialog after an isolated Cypress run exposed a global
+selector matching both the per-game control and the manual-add control. The
+first r10 release-note preview also caught the forward merge restoring post-tag
+copy inside the published game-library fragment and dropping the two separate
+follow-up fragments. The published fragment has been restored byte-for-byte
+(SHA-256 `a28c52399baaab6df5c105535840c4f311153290705950a70fc1d5749777d010`),
+and the later game-progress and bounded-sync behavior remains in its separate
+append-only fragments. The corrected preview must be rerun against the exact
+candidate. It must also receive a fresh validation plan, the complete
+development gate, a guarded production build, bundle-budget check, and affected
+disposable Cypress runs on `kspls0`. No production source was changed by these
+test and note corrections. The final candidate must also be reviewed against
+the documented product-owner release authorization; no separate John acceptance
+is asserted here.

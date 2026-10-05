@@ -111,10 +111,9 @@ OpenAPI contract, and safe download-file resolution.
 
 ## Unrelated work preserved
 
-The following existing or concurrent external-request-list changes were
-authored independently of reader delivery (the single `mediaId` parameter
-addition in the shared OpenAPI file is reader delivery work). They remain
-separately attributable in the consolidated release candidate:
+The following existing or concurrent external-request-list changes were not
+modified as part of reader delivery (the single mediaId parameter addition in
+the shared OpenAPI file is reader delivery work):
 
 - server/routes/software.ts and server/routes/software.test.ts
 - server/lib/settings/index.ts external-request-list job type and schedule
@@ -237,96 +236,5 @@ Current extension verification after the last source edits:
 - Rendered preview and John's visual acceptance remain pending. The in-app
   browser and isolated workspace browser tools were not exposed in this
   session. No live Grimmory, BookOrbit, OPDS app, or e-reader round trip ran.
-- The earlier instruction to keep external request-list and software catalog
-  changes outside the reader-delivery candidate was superseded by the user's
-  explicit direction to include all distinct dirty and unrelated work in the
-  final release.
-
-## All-dirty consolidation — October 4, 2026
-
-The user explicitly directed that all distinct dirty and unrelated changes be
-included. The candidate therefore keeps the following independently authored
-work together while retaining its separate release notes and test coverage:
-
-- Per-user external request lists, the Steam household game library, software
-  catalog search fallback, request-count refresh, and the earlier game/reader
-  features already present in this candidate.
-- The donation-link change from `/tmp/codex-support-links/seerrng`, including
-  its README/About updates and `release-notes/changed-donation-link.md`.
-- The Audiobookshelf pagination/completeness hardening from preserved stash
-  `d377f690ddda68b0d15bf4bb8ef9a246e51b31bc`, with a bounded item-ID set,
-  per-page response checks, regression coverage, and
-  `release-notes/2026-10-04-audiobookshelf-scan-bounds.md`.
-- The request-edit identity fix from `/tmp/seerrng-release-integration`.
-  `RequestBlock` now uses the parent detail identity when an API response omits
-  `request.media`, while keeping movie, TV, book, music, comic, magazine and
-  collection modal identities available. External-media detail pages provide
-  their own identity as well. Its UI regression tests and dev-only QA route are
-  retained, with the QA route returning 404 in production, and the fix has a
-  structured release-note fragment.
-- The independent discover OpenAPI response-contract regression test from
-  `/tmp/seerrng-response-v2-pre`.
-
-The Cypress database-preparation change, magazine ID-zero tests, failed-download
-route tests, Questarr help-text assertion, and request-count work were already
-present in the consolidated tree; duplicate source snapshots were not copied a
-second time. Earlier reader-delivery and grouping snapshots are recovery states,
-not separate newer patches. No source worktree or stash was dropped.
-
-Recovery before merging the all-dirty inventory is preserved as stash
-`057219485a063805eea0aabf4f1a0ef652842e6c`. The inventory and merge are
-complete; full development validation, production build, rendered review,
-human visual acceptance, commit, push, and release remain pending.
-
-Focused verification after the last request-edit and Audiobookshelf changes:
-
-- `pnpm test:node` on Audiobookshelf scan helper/scanner/API tests and discover
-  OpenAPI contract: **12 passed, 0 failed, 0 skipped**.
-- Vitest `RequestBlock/index.test.tsx`: **2 passed, 0 failed**.
-- Server and client TypeScript checks: **passed**.
-- Focused ESLint, English message extraction/check, and Prettier after formatting:
-  **passed**.
-- The initial direct `node --import tsx --test` attempt used a loader absent from
-  this repository and is not counted; the project-supported `pnpm test:node`
-  runner then executed the affected Node suites successfully.
-
-## Rebuilt rendered settings workflow — October 4, 2026 (Regina local)
-
-The production app was rebuilt after the GameLibrary page-shell correction and
-the Settings Services reader UI was reviewed from that build. Its final isolated
-Cypress flow passed **1/1** at 1280×900 and 390×844 CSS viewports. It saved both
-reader addresses and the BookOrbit preference, checked the generated Grimmory
-OPDS and Komga links and BookOrbit OPDS link, reloaded to verify persistence,
-and confirmed the reader shelves empty state. Screenshot captures at
-`/tmp/seerrng-rendered-review-20261005/reader-delivery/` were inspected; headless
-Electron saved them at 1280×720 and 390×720 even though the test verified the
-larger CSS viewport heights.
-
-The run used the disposable local SQLite configuration and reserved `.test`
-reader addresses. It did not run the connection-test action or contact
-Grimmory, BookOrbit, an OPDS client, or an e-reader. Provider round trips remain
-unverified. The complete development gate passed: 99 Vitest files/452 tests;
-385 Node TypeScript files/2,912 tests (2,908 passed and four PostgreSQL-only
-skips); 56 native JavaScript files/485 tests; 32 tooling files/238 tests; 569
-current-batch files; and 397/397 shared-style references. There were no
-failures or platform exclusions. The final gate log is
-`/tmp/seerrng-validate-development-final-20261005.log`. John's human visual
-acceptance remains required before release.
-
-## All-dirty commit and forward-integration checkpoint
-
-- Reader delivery and managed groupings are committed as
-  `f1b69beda9ac8400dae12183c32c547fc3191e40`. Grimmory remains the default;
-  BookOrbit can be selected and is used as the configured fallback where
-  Grimmory has no address.
-- The game and external request-list changes remain separately attributable in
-  their own commits and release fragments.
-- The branch was rebased without conflicts onto `origin/main`
-  `4665245f97a90d546a94eb25fdcd4c91104bfd7b`; its only intervening change is
-  the YunoHost manifest. The source commit is now
-  `23e84d7aa462d6da6c5293fa8d84b2adfe11e282`.
-- Final integrated validation, production build, and disposable reader browser
-  flow are pending; prior validation and screenshots do not cover that target.
-- No live Grimmory, BookOrbit, OPDS, Komga, or Bookshelf round trip has been
-  verified. John's visual acceptance remains pending and required before
-  release.
+- User-owned external request-list and software catalog changes remain outside
+  the reader-delivery candidate and must not enter its commit.
