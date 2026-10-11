@@ -1,4 +1,3 @@
-import { getRequestStatusCounts } from '@server/lib/requestStatus';
 import assert from 'node:assert/strict';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -20,6 +19,8 @@ postgresTest(
     let queryRunner: ReturnType<DataSource['createQueryRunner']> | undefined;
 
     try {
+      const { getRequestStatusCounts } =
+        await import('@server/lib/requestStatus');
       const entityDirectory = join(process.cwd(), 'server/entity');
       const entityFiles = (await readdir(entityDirectory)).filter(
         (file) => file.endsWith('.ts') && !file.endsWith('.test.ts')
