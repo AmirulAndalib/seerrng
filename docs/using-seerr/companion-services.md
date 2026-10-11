@@ -19,7 +19,7 @@ provider only for the media categories you want to request.
 | Sports leagues | [Sportarr](https://github.com/Sportarr/Sportarr) | Searches sports leagues and requests them using the configured quality profile and library defaults. |
 | Music | [Lidarr](https://github.com/Lidarr/Lidarr) | Searches, imports, and tracks artist and album requests. |
 | Books and audiobooks | [BookshelfNG](https://github.com/snapetech/bookshelfng) or [ChaptarrNG](https://github.com/snapetech/chaptarrng) | Recommended SeerrNG-compatible book managers. Either can serve both formats from one instance; add one SeerrNG service entry for each format. Other Readarr-compatible services may work, but do not provide the NG-specific behavior listed below. |
-| Comics | [BackIssue](https://backissue.app/), [Mylar3](https://github.com/mylar3/mylar3), or [Kapowarr](https://github.com/Casvt/Kapowarr) | Connect one or more supported comic services, then choose a default destination for requests. Mylar3, Kapowarr, and BackIssue use different search sources and download flows. |
+| Comics | [BackIssue](https://backissue.app/), [Mylar3](https://github.com/mylar3/mylar3) or its API-compatible successor [Issuarr](https://issuarr.github.io/issuarr/), or [Kapowarr](https://github.com/Casvt/Kapowarr) | Connect one or more supported comic services, then choose a default destination for requests. Add Mylar3 or Issuarr through the existing **Mylar3** service type; Kapowarr and BackIssue use their own search sources and download flows. |
 | Magazines | [LazyLibrarian](https://github.com/llninja/LazyLibrarian) | Searches and tracks magazine requests. |
 | PC games | [QuestarrNG](https://github.com/snapetech/QuestarrNG) | Provides the IGDB catalog and acquires PC game requests. |
 | Emulation ROMs | [ROMarrNG](https://github.com/snapetech/ROMarrNG) | Provides supported systems and acquires ROM requests. Configure each available system as Retro or Modern in SeerrNG. |
@@ -59,9 +59,9 @@ the recommended Hardcover-backed setup. PC game acquisition and its SeerrNG
 catalog use QuestarrNG. ROM acquisition uses ROMarrNG; its optional IGDB
 catalog does not replace QuestarrNG for PC game acquisition. Follow each fork's
 SeerrNG setup instructions and use the linked NG image so its integration
-contract is present. Radarr, Sonarr, Lidarr, LazyLibrarian, Mylar3, Kapowarr,
-and BackIssue remain separate upstream or third-party integrations; they are
-not Snapetech forks.
+contract is present. Radarr, Sonarr, Lidarr, LazyLibrarian, Mylar3, Issuarr,
+Kapowarr, and BackIssue remain separate upstream or third-party integrations;
+they are not Snapetech forks.
 
 ## Docker and Compose
 

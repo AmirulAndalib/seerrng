@@ -858,7 +858,8 @@ authRoutes.post('/plex', authRateLimit, async (req, res, next) => {
       user.passwordChangedAt?.getTime() ?? 0
     );
 
-    return res.status(200).json(user?.filter() ?? {});
+    await User.populateRequestCounts([user]);
+    return res.status(200).json(user.filter(true));
   } catch (e) {
     if (e instanceof UserMutationActorUnauthorizedError) {
       return next({ status: 403, message: 'Access denied.' });

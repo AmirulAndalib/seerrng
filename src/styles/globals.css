@@ -5008,6 +5008,7 @@
   }
 
   input[type='text'],
+  input[type='number'],
   input[type='password'],
   select,
   textarea {
@@ -9185,6 +9186,7 @@
     max-height: 45%;
     overflow-y: auto;
     padding: var(--card-spacing);
+    background-color: rgb(var(--color-gray-800));
     scrollbar-width: thin;
   }
 

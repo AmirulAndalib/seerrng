@@ -63,7 +63,7 @@ This fork is maintained by snapetech. Upstream Seerr remains the base project fo
 - Music discovery and metadata through MusicBrainz, ListenBrainz, Cover Art Archive, TheAudioDB, and archive-backed artwork sources.
 - Book discovery and identity matching through Open Library, ISBN-10/ISBN-13 normalization, foreign book IDs, and edition IDs.
 - Audiobook discovery from connected audiobook catalogs, with author and narrator filtering and no ebook-only search results.
-- Comic discovery through ComicVine and magazine discovery through Google Books or LazyLibrarian, with Mylar3, Kapowarr, or BackIssue handling comic acquisition and LazyLibrarian handling magazines.
+- Comic discovery through ComicVine and magazine discovery through Google Books or LazyLibrarian, with Mylar3, its API-compatible successor Issuarr, Kapowarr, or BackIssue handling comic acquisition and LazyLibrarian handling magazines.
 - Separate ebook and audiobook service routing so both formats can be requested, approved, scanned, retried, and removed independently.
 - One BookshelfNG instance can manage both formats on the same book record.
   When both formats are enabled, their separate SeerrNG service entries can
@@ -197,7 +197,7 @@ macOS, or Linux, use the [cross-platform setup assistant](./docs/using-seerr/set
 
 ### Unraid
 
-Install SeerrNG from Community Applications with the [Unraid template](https://raw.githubusercontent.com/snapetech/seerrng/main/packaging/unraid/seerrng.xml). It uses the stable `latest` image, maps HTTP port `5055` and optional HTTPS port `5056`, and persists `/app/config`. The image runs as UID/GID `1000:1000`, so make the selected appdata directory writable by that user before the first start. Optional BookshelfNG, ChaptarrNG, ROMarrNG, and QuestarrNG templates live in each fork's own repository; the [Unraid guide](docs/getting-started/third-parties/unraid.mdx) links to their templates and to the existing Community Apps listings for LazyLibrarian, Mylar3, and Kapowarr. BackIssue has its own Docker image and Unraid template; see its [getting-started guide](https://backissue.app/getting-started).
+Install SeerrNG from Community Applications with the [Unraid template](https://raw.githubusercontent.com/snapetech/seerrng/main/packaging/unraid/seerrng.xml). It uses the stable `latest` image, maps HTTP port `5055` and optional HTTPS port `5056`, and persists `/app/config`. The image runs as UID/GID `1000:1000`, so make the selected appdata directory writable by that user before the first start. Optional BookshelfNG, ChaptarrNG, ROMarrNG, and QuestarrNG templates live in each fork's own repository; the [Unraid guide](docs/getting-started/third-parties/unraid.mdx) links to their templates and to the existing Community Apps listings for LazyLibrarian, Mylar3, and Kapowarr, plus Issuarr's own Unraid guide. BackIssue has its own Docker image and Unraid template; see its [getting-started guide](https://backissue.app/getting-started).
 
 ### Linux Packages
 
@@ -254,7 +254,7 @@ can each handle Book and Audiobook formats; one BookshelfNG instance can serve
 both. QuestarrNG handles PC game acquisition, while ROMarrNG handles emulation
 systems and ROM acquisition.
 
-Radarr, Sonarr, Lidarr, LazyLibrarian, Mylar3, Kapowarr, and BackIssue are
+Radarr, Sonarr, Lidarr, LazyLibrarian, Mylar3, Issuarr, Kapowarr, and BackIssue are
 separate upstream or third-party integrations. They are not NG forks. The
 [companion services guide](./docs/using-seerr/companion-services.md) compares
 providers and explains when each NG fork is needed.

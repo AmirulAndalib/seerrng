@@ -54,6 +54,7 @@ export interface PublicSettingsResponse {
   originalLanguage: string;
   mediaServerType: number;
   partialRequestsEnabled: boolean;
+  personMovieBulkRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
   cacheImages: boolean;
   vapidPublic: string;

@@ -1074,6 +1074,34 @@ describe('GET /discover/movies', () => {
     assert.strictEqual(res.status, 200);
   });
 
+  it('forwards the minimum vote count to TMDB movie discovery', async () => {
+    mockPrivate(
+      ExternalAPI.prototype,
+      'get',
+      async (endpoint: unknown, options: unknown) => {
+        const requestOptions = options as {
+          params?: { 'vote_count.gte'?: string };
+        };
+        assert.strictEqual(endpoint, '/discover/movie');
+        assert.strictEqual(requestOptions.params?.['vote_count.gte'], '50');
+
+        return {
+          page: 1,
+          total_pages: 1,
+          total_results: 0,
+          results: [],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/movies?sortBy=vote_average.desc&voteCountGte=50'
+    );
+
+    assert.strictEqual(res.status, 200);
+  });
+
   it('rejects malformed or excessive keyword fan-out before provider lookup', async () => {
     const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get', async () => {
       throw new Error('TMDB should not be called for invalid keyword filters');
@@ -1488,6 +1516,34 @@ describe('GET /discover/tv', () => {
 
     const agent = await login();
     const res = await agent.get('/discover/tv?country=CA');
+
+    assert.strictEqual(res.status, 200);
+  });
+
+  it('forwards the minimum vote count to TMDB series discovery', async () => {
+    mockPrivate(
+      ExternalAPI.prototype,
+      'get',
+      async (endpoint: unknown, options: unknown) => {
+        const requestOptions = options as {
+          params?: { 'vote_count.gte'?: string };
+        };
+        assert.strictEqual(endpoint, '/discover/tv');
+        assert.strictEqual(requestOptions.params?.['vote_count.gte'], '50');
+
+        return {
+          page: 1,
+          total_pages: 1,
+          total_results: 0,
+          results: [],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/tv?sortBy=vote_average.desc&voteCountGte=50'
+    );
 
     assert.strictEqual(res.status, 200);
   });

@@ -1640,18 +1640,22 @@ const stageMatchesFilter = (
   }
 };
 
-const getRequestStatusCounts = async (options: {
-  ownerId?: number;
-  mediaId?: number;
-  mediaType?: MediaType;
-  bookFormat?: 'ebook' | 'audiobook';
-  since?: Date;
-}): Promise<RequestStatusPage['counts']> => {
-  const requestRepository = getRepository(MediaRequest);
-  const latestEventQuery = getStatusEventRepository()
+export const getRequestStatusCounts = async (
+  options: {
+    ownerId?: number;
+    mediaId?: number;
+    mediaType?: MediaType;
+    bookFormat?: 'ebook' | 'audiobook';
+    since?: Date;
+  },
+  manager?: EntityManager
+): Promise<RequestStatusPage['counts']> => {
+  const requestRepository =
+    manager?.getRepository(MediaRequest) ?? getRepository(MediaRequest);
+  const latestEventQuery = getStatusEventRepository(manager)
     .createQueryBuilder('statusEventCountFilter')
-    .select('statusEventCountFilter.requestId', 'requestId')
-    .addSelect('MAX(statusEventCountFilter.id)', 'eventId')
+    .select('statusEventCountFilter.requestId', 'request_id')
+    .addSelect('MAX(statusEventCountFilter.id)', 'event_id')
     .groupBy('statusEventCountFilter.requestId');
   const query = requestRepository
     .createQueryBuilder('requestCount')
@@ -1659,16 +1663,16 @@ const getRequestStatusCounts = async (options: {
     .leftJoin('requestCount.requestedBy', 'requestedByCount')
     .leftJoin(
       `(${latestEventQuery.getQuery()})`,
-      'latestStatusCountId',
-      'latestStatusCountId.requestId = requestCount.id'
+      'latest_status_count_id',
+      'latest_status_count_id.request_id = requestCount.id'
     )
     .leftJoin(
       MediaRequestStatusEvent,
-      'latestStatusCount',
-      'latestStatusCount.id = latestStatusCountId.eventId'
+      'latest_status_count',
+      'latest_status_count.id = latest_status_count_id.event_id'
     )
     .select('requestCount.status', 'requestStatus')
-    .addSelect('latestStatusCount.stage', 'stage')
+    .addSelect('latest_status_count.stage', 'stage')
     .addSelect('requestCount.type', 'mediaType')
     .addSelect(
       'CASE WHEN requestCount.is4k THEN mediaCount.status4k ELSE mediaCount.status END',

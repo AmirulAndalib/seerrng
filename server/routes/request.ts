@@ -3,6 +3,7 @@ import RadarrAPI from '@server/api/servarr/radarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import SportarrAPI from '@server/api/servarr/sportarr';
+import TheMovieDb from '@server/api/themoviedb';
 import {
   MediaRequestStatus,
   MediaStatus,
@@ -33,6 +34,8 @@ import type {
   BulkMediaRequestBody,
   BulkMediaRequestResponse,
   MediaRequestBody,
+  PersonMovieBulkRequestBody,
+  PersonMovieBulkRequestResponse,
   RequestResultsResponse,
   RequestStatusDetailResponse,
   RequestStatusResultsResponse,
@@ -76,6 +79,7 @@ import requestWorkCleanupManager, {
   RequestWorkCleanupError,
 } from '@server/lib/requestWorkCleanup';
 import { runWithCurrentServarrService } from '@server/lib/serviceAdmission';
+import { getSettings } from '@server/lib/settings';
 import { isSportarrLeagueExternalId } from '@server/lib/sportarrIdentity';
 import {
   UserMutationActorUnauthorizedError,
@@ -110,9 +114,18 @@ import { pipeline } from 'node:stream/promises';
 const requestRoutes = Router();
 export const REQUEST_SERVICE_PROFILE_CONCURRENCY = 10;
 const maxBulkRequestItems = 100;
+const maxPersonMovieBulkRequestItems = 100;
 const maxRequestIdValue = 1_000_000_000;
 const maxRequestTags = 100;
 const maxRequestRootFolderLength = 4096;
+
+const isSingleEpisodeWatchAheadSelection = (
+  seasonRequests: MediaRequestBody['seasonRequests'],
+  watchAheadEpisodeCount: number
+): boolean =>
+  watchAheadEpisodeCount > 0 &&
+  seasonRequests?.length === 1 &&
+  seasonRequests[0].episodeNumbers?.length === 1;
 const maxRequestProfileNameLength = 512;
 const maxBulkRequestItemTextLength = 512;
 const maxSeasonCount = 500;
@@ -2534,6 +2547,23 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
         return next(body.error);
       }
 
+      if (
+        body.value.mediaType === MediaType.TV &&
+        !getSettings().main.partialRequestsEnabled &&
+        body.value.seasonRequests?.some(
+          (selection) => selection.episodeNumbers !== undefined
+        ) &&
+        !isSingleEpisodeWatchAheadSelection(
+          body.value.seasonRequests,
+          body.value.watchAheadEpisodeCount ?? 0
+        )
+      ) {
+        return next({
+          status: 403,
+          message: 'Partial series requests are disabled by the administrator.',
+        });
+      }
+
       const disabledCategory = getDisabledCategoryForRequest(
         body.value.mediaType,
         body.value.format
@@ -2608,6 +2638,112 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
     }
   }
 );
+
+requestRoutes.post<
+  never,
+  PersonMovieBulkRequestResponse,
+  PersonMovieBulkRequestBody
+>('/person-movies', async (req, res, next) => {
+  if (!req.user) {
+    return next({
+      status: 401,
+      message: 'You must be logged in to request media.',
+    });
+  }
+
+  const movieIds = req.body?.movieIds;
+  if (
+    !Array.isArray(movieIds) ||
+    movieIds.length === 0 ||
+    movieIds.length > maxPersonMovieBulkRequestItems ||
+    movieIds.some(
+      (movieId) =>
+        !Number.isSafeInteger(movieId) ||
+        movieId < 1 ||
+        movieId > maxRequestIdValue
+    )
+  ) {
+    return next({
+      status: 400,
+      message: `movieIds must contain between 1 and ${maxPersonMovieBulkRequestItems} valid movie IDs.`,
+    });
+  }
+
+  if (!getSettings().main.personMovieBulkRequestsEnabled) {
+    return next({
+      status: 403,
+      message: 'Bulk movie requests from person pages are disabled.',
+    });
+  }
+
+  const disabledCategory = getDisabledCategoryForRequest(MediaType.MOVIE);
+  if (disabledCategory) {
+    return next({
+      status: 403,
+      message: `${getMediaCategoryLabel(disabledCategory)} requests are disabled by the administrator.`,
+    });
+  }
+
+  const uniqueMovieIds = [...new Set(movieIds)];
+  const created: number[] = [];
+  const skipped: PersonMovieBulkRequestResponse['skipped'] = [];
+  const failed: PersonMovieBulkRequestResponse['failed'] = [];
+  let stoppedReason: string | undefined;
+
+  for (let index = 0; index < uniqueMovieIds.length; index += 1) {
+    const movieId = uniqueMovieIds[index];
+    try {
+      await MediaRequest.request(
+        { mediaType: MediaType.MOVIE, mediaId: movieId },
+        req.user,
+        { expectedCredentialVersion: getExpectedCredentialVersion(req) }
+      );
+      created.push(movieId);
+    } catch (error) {
+      if (
+        error instanceof DuplicateMediaRequestError ||
+        error instanceof BlocklistedMediaError
+      ) {
+        skipped.push({ movieId, reason: error.message });
+        continue;
+      }
+
+      if (
+        error instanceof QuotaRestrictedError ||
+        error instanceof ServiceConfigurationError
+      ) {
+        stoppedReason = error.message;
+        failed.push({ movieId, reason: error.message });
+        for (const remainingMovieId of uniqueMovieIds.slice(index + 1)) {
+          failed.push({ movieId: remainingMovieId, reason: error.message });
+        }
+        break;
+      }
+
+      if (
+        error instanceof UserMutationActorUnauthorizedError ||
+        error instanceof RequestPermissionError
+      ) {
+        return next({ status: 403, message: error.message });
+      }
+
+      logger.error('Failed to submit person-page movie request', {
+        label: 'Request',
+        ...getErrorLogFields(error),
+        movieId,
+        userId: req.user.id,
+      });
+      failed.push({ movieId, reason: 'Unable to process this movie.' });
+    }
+  }
+
+  return res.status(200).json({
+    created,
+    skipped,
+    failed,
+    ...(stoppedReason ? { stoppedReason } : {}),
+  });
+});
 
 requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
   '/bulk',
@@ -3829,6 +3965,26 @@ requestRoutes.put<{ requestId: string }>(
                 });
               }
 
+              if (
+                (body.mediaType ?? request.type) === MediaType.TV &&
+                !getSettings().main.partialRequestsEnabled &&
+                body.seasonRequests?.some(
+                  (selection) => selection.episodeNumbers !== undefined
+                ) &&
+                !isSingleEpisodeWatchAheadSelection(
+                  body.seasonRequests,
+                  body.watchAheadEpisodeCount ??
+                    request.watchAheadEpisodeCount ??
+                    0
+                )
+              ) {
+                return next({
+                  status: 403,
+                  message:
+                    'Partial series requests are disabled by the administrator.',
+                });
+              }
+
               if (body.mediaType && body.mediaType !== request.type) {
                 return next({
                   status: 400,
@@ -4103,6 +4259,80 @@ requestRoutes.put<{ requestId: string }>(
                           : [];
                       }
                     );
+
+                    if (
+                      !getSettings().main.partialRequestsEnabled &&
+                      !isSingleEpisodeWatchAheadSelection(
+                        filteredSelections,
+                        body.watchAheadEpisodeCount ??
+                          request.watchAheadEpisodeCount ??
+                          0
+                      )
+                    ) {
+                      if (
+                        filteredSelections.some(
+                          (selection) => selection.episodeNumbers !== undefined
+                        )
+                      ) {
+                        return next({
+                          status: 403,
+                          message:
+                            'Partial series requests are disabled by the administrator.',
+                        });
+                      }
+
+                      let tmdbShow: Awaited<
+                        ReturnType<TheMovieDb['getTvShow']>
+                      >;
+                      try {
+                        tmdbShow = await new TheMovieDb().getTvShow({
+                          tvId: request.media.tmdbId,
+                        });
+                      } catch {
+                        return next({
+                          status: 503,
+                          message:
+                            'Unable to verify all unavailable seasons. Try again later.',
+                        });
+                      }
+
+                      const allUnavailableSeasonNumbers = new Set(
+                        tmdbShow.seasons
+                          .filter(
+                            (season) =>
+                              season.episode_count > 0 &&
+                              (getSettings().main.enableSpecialEpisodes ||
+                                season.season_number > 0) &&
+                              !fullyRequestedSeasons.has(
+                                season.season_number
+                              ) &&
+                              (currentSeasonNumbers.has(season.season_number) ||
+                                !availableSeasonNumbers.has(
+                                  season.season_number
+                                ))
+                          )
+                          .map(({ season_number }) => season_number)
+                      );
+                      const selectedSeasonNumbers = new Set(
+                        filteredSelections.map(
+                          ({ seasonNumber }) => seasonNumber
+                        )
+                      );
+                      if (
+                        selectedSeasonNumbers.size !==
+                          allUnavailableSeasonNumbers.size ||
+                        [...allUnavailableSeasonNumbers].some(
+                          (seasonNumber) =>
+                            !selectedSeasonNumbers.has(seasonNumber)
+                        )
+                      ) {
+                        return next({
+                          status: 403,
+                          message:
+                            'Partial series requests are disabled by the administrator.',
+                        });
+                      }
+                    }
 
                     if (filteredSelections.length === 0) {
                       return next({

@@ -34,6 +34,7 @@ import OverrideRule from '@server/entity/OverrideRule';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
 import { User } from '@server/entity/User';
+import { UserSettings } from '@server/entity/UserSettings';
 import { aliasDownloadId } from '@server/lib/mediaResponse';
 import { Permission } from '@server/lib/permissions';
 import requestAdmissionCoordinator from '@server/lib/requestAdmission';
@@ -2410,6 +2411,164 @@ describe('POST /request', () => {
     assert.match(wrongTierResponse.body.message, /quality tier/i);
     assert.ok(providerMediaIds.length > 0);
     assert.ok(providerMediaIds.every((mediaId) => mediaId === 987_640));
+  });
+
+  it('uses the request user’s saved Radarr folder when no folder is submitted', async (t) => {
+    const settings = getSettings();
+    configureRadarr([createRadarrSettings(30)]);
+    const friend = await getRepository(User).findOneByOrFail({
+      email: 'friend@seerr.dev',
+    });
+    const previousSettings = friend.settings;
+    const savedSettings =
+      previousSettings ?? new UserSettings({ user: friend });
+    const previousRequestRootFolders = {
+      ...savedSettings.requestRootFolders,
+    };
+    savedSettings.requestRootFolders = {
+      ...previousRequestRootFolders,
+      'radarr:30': '/personal/movies',
+    };
+    friend.settings = savedSettings;
+    await getRepository(User).save(friend);
+    t.after(async () => {
+      settings.radarr = [];
+      if (previousSettings) {
+        previousSettings.requestRootFolders = previousRequestRootFolders;
+        friend.settings = previousSettings;
+        await getRepository(User).save(friend);
+      } else {
+        await getRepository(UserSettings).delete({ id: savedSettings.id });
+      }
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const response = await agent.post('/request').send({
+      mediaType: MediaType.MOVIE,
+      mediaId: 987_643,
+    });
+
+    assert.strictEqual(response.status, 201);
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: response.body.id,
+    });
+    assert.strictEqual(savedRequest.rootFolder, '/personal/movies');
+  });
+
+  it('uses the request user’s saved Sonarr folder when no folder is submitted', async (t) => {
+    const settings = getSettings();
+    settings.sonarr = [createSonarrSettings(31)];
+    const friend = await getRepository(User).findOneByOrFail({
+      email: 'friend@seerr.dev',
+    });
+    const previousSettings = friend.settings;
+    const savedSettings =
+      previousSettings ?? new UserSettings({ user: friend });
+    const previousRequestRootFolders = {
+      ...savedSettings.requestRootFolders,
+    };
+    savedSettings.requestRootFolders = {
+      ...previousRequestRootFolders,
+      'sonarr:31': '/personal/series',
+    };
+    friend.settings = savedSettings;
+    await getRepository(User).save(friend);
+    t.after(async () => {
+      settings.sonarr = [];
+      if (previousSettings) {
+        previousSettings.requestRootFolders = previousRequestRootFolders;
+        friend.settings = previousSettings;
+        await getRepository(User).save(friend);
+      } else {
+        await getRepository(UserSettings).delete({ id: savedSettings.id });
+      }
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const response = await agent.post('/request').send({
+      mediaType: MediaType.TV,
+      mediaId: 987_649,
+      seasons: [1],
+    });
+
+    assert.strictEqual(response.status, 201);
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: response.body.id,
+    });
+    assert.strictEqual(savedRequest.rootFolder, '/personal/series');
+  });
+
+  it('rejects episode selections when partial requests are disabled', async (t) => {
+    const settings = getSettings();
+    const previousPartialSetting = settings.main.partialRequestsEnabled;
+    settings.main.partialRequestsEnabled = false;
+    t.after(() => {
+      settings.main.partialRequestsEnabled = previousPartialSetting;
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const response = await agent.post('/request').send({
+      mediaType: MediaType.TV,
+      mediaId: 987_644,
+      seasonRequests: [{ seasonNumber: 1, episodeNumbers: [1, 2] }],
+    });
+
+    assert.strictEqual(response.status, 403);
+    assert.match(
+      response.body.message,
+      /partial series requests are disabled/i
+    );
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
+  it('requires all unavailable seasons when partial requests are disabled', async (t) => {
+    const settings = getSettings();
+    const previousPartialSetting = settings.main.partialRequestsEnabled;
+    settings.main.partialRequestsEnabled = false;
+    Object.defineProperty(TheMovieDb.prototype, 'getTvShow', {
+      configurable: true,
+      get: () => async () =>
+        ({
+          ...fakeTmdbShow(987_645),
+          seasons: [1, 2, 3].map((season_number) => ({
+            season_number,
+            episode_count: 8,
+          })),
+        }) as TmdbTvDetails,
+      set: () => undefined,
+    });
+    t.after(() => {
+      settings.main.partialRequestsEnabled = previousPartialSetting;
+      delete (TheMovieDb.prototype as Partial<TheMovieDb>).getTvShow;
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const partialResponse = await agent.post('/request').send({
+      mediaType: MediaType.TV,
+      mediaId: 987_645,
+      seasons: [1],
+    });
+
+    assert.strictEqual(partialResponse.status, 403);
+    assert.match(
+      partialResponse.body.message,
+      /partial series requests are disabled/i
+    );
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+
+    const fullResponse = await agent.post('/request').send({
+      mediaType: MediaType.TV,
+      mediaId: 987_645,
+      seasons: [1, 2, 3],
+    });
+
+    assert.strictEqual(fullResponse.status, 201);
+    assert.deepStrictEqual(
+      fullResponse.body.seasons.map(
+        ({ seasonNumber }: { seasonNumber: number }) => seasonNumber
+      ),
+      [1, 2, 3]
+    );
   });
 
   it('applies the most specific matching override rule deterministically', async (t) => {
@@ -5403,6 +5562,113 @@ describe('PUT /request/:requestId', () => {
     );
   };
 
+  it('rejects partial-season edits when partial requests are disabled', async (t) => {
+    const settings = getSettings();
+    const previousPartialSetting = settings.main.partialRequestsEnabled;
+    settings.main.partialRequestsEnabled = false;
+    t.after(() => {
+      settings.main.partialRequestsEnabled = previousPartialSetting;
+    });
+    const friend = await getRepository(User).findOneByOrFail({ id: 2 });
+    const mediaRequest = await createTvRequest({
+      requestedBy: friend,
+      seasons: [1],
+      tmdbId: 8100,
+    });
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+
+    const response = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.TV,
+      seasonRequests: [{ seasonNumber: 1, episodeNumbers: [1] }],
+    });
+
+    assert.strictEqual(response.status, 403);
+    assert.match(
+      response.body.message,
+      /partial series requests are disabled/i
+    );
+  });
+
+  it('requires all unavailable seasons when editing with partial requests disabled', async (t) => {
+    const settings = getSettings();
+    const previousPartialSetting = settings.main.partialRequestsEnabled;
+    settings.main.partialRequestsEnabled = false;
+    Object.defineProperty(TheMovieDb.prototype, 'getTvShow', {
+      configurable: true,
+      get: () => async () =>
+        ({
+          ...fakeTmdbShow(8103),
+          seasons: [1, 2, 3].map((season_number) => ({
+            season_number,
+            episode_count: 8,
+          })),
+        }) as TmdbTvDetails,
+      set: () => undefined,
+    });
+    t.after(() => {
+      settings.main.partialRequestsEnabled = previousPartialSetting;
+      delete (TheMovieDb.prototype as Partial<TheMovieDb>).getTvShow;
+    });
+    const friend = await getRepository(User).findOneByOrFail({ id: 2 });
+    const mediaRequest = await createTvRequest({
+      requestedBy: friend,
+      seasons: [1],
+      tmdbId: 8103,
+    });
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+
+    const partialResponse = await agent
+      .put(`/request/${mediaRequest.id}`)
+      .send({ mediaType: MediaType.TV, seasons: [1] });
+
+    assert.strictEqual(partialResponse.status, 403);
+    assert.match(
+      partialResponse.body.message,
+      /partial series requests are disabled/i
+    );
+
+    const fullResponse = await agent
+      .put(`/request/${mediaRequest.id}`)
+      .send({ mediaType: MediaType.TV, seasons: [1, 2, 3] });
+
+    assert.strictEqual(fullResponse.status, 200);
+    assert.deepStrictEqual(
+      fullResponse.body.seasons.map(
+        ({ seasonNumber }: { seasonNumber: number }) => seasonNumber
+      ),
+      [1, 2, 3]
+    );
+  });
+
+  it('does not let an existing episode queue authorize a multi-episode edit', async (t) => {
+    const settings = getSettings();
+    const previousPartialSetting = settings.main.partialRequestsEnabled;
+    settings.main.partialRequestsEnabled = false;
+    t.after(() => {
+      settings.main.partialRequestsEnabled = previousPartialSetting;
+    });
+    const friend = await getRepository(User).findOneByOrFail({ id: 2 });
+    const mediaRequest = await createTvRequest({
+      requestedBy: friend,
+      seasons: [1],
+      tmdbId: 8102,
+    });
+    mediaRequest.watchAheadEpisodeCount = 2;
+    await getRepository(MediaRequest).save(mediaRequest);
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+
+    const response = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.TV,
+      seasonRequests: [{ seasonNumber: 1, episodeNumbers: [1, 2] }],
+    });
+
+    assert.strictEqual(response.status, 403);
+    assert.match(
+      response.body.message,
+      /partial series requests are disabled/i
+    );
+  });
+
   it('does not allow an approved series request to be rewritten', async () => {
     const friend = await getRepository(User).findOneByOrFail({ id: 2 });
     const mediaRequest = await createTvRequest({
@@ -6844,6 +7110,65 @@ describe('POST /request/:requestId/retry', () => {
       where: { id: failed.id },
     });
     assert.strictEqual(persisted.status, MediaRequestStatus.FAILED);
+  });
+});
+
+describe('POST /request/person-movies', () => {
+  it('requires the administrator opt-in', async (t) => {
+    const settings = getSettings();
+    const previousEnabled = settings.main.personMovieBulkRequestsEnabled;
+    settings.main.personMovieBulkRequestsEnabled = false;
+    t.after(() => {
+      settings.main.personMovieBulkRequestsEnabled = previousEnabled;
+    });
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+
+    const response = await agent
+      .post('/request/person-movies')
+      .send({ movieIds: [987_645] });
+
+    assert.strictEqual(response.status, 403);
+    assert.match(response.body.message, /disabled/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
+  it('deduplicates IDs and submits movies through normal request admission', async (t) => {
+    const settings = getSettings();
+    const previousEnabled = settings.main.personMovieBulkRequestsEnabled;
+    settings.main.personMovieBulkRequestsEnabled = true;
+    t.after(() => {
+      settings.main.personMovieBulkRequestsEnabled = previousEnabled;
+    });
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+
+    const response = await agent
+      .post('/request/person-movies')
+      .send({ movieIds: [987_646, 987_646, 987_647] });
+
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(response.body.created, [987_646, 987_647]);
+    assert.deepStrictEqual(response.body.skipped, []);
+    assert.deepStrictEqual(response.body.failed, []);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 2);
+  });
+
+  it('rejects more than 100 or malformed movie IDs', async (t) => {
+    const settings = getSettings();
+    const previousEnabled = settings.main.personMovieBulkRequestsEnabled;
+    settings.main.personMovieBulkRequestsEnabled = true;
+    t.after(() => {
+      settings.main.personMovieBulkRequestsEnabled = previousEnabled;
+    });
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const tooMany = await agent
+      .post('/request/person-movies')
+      .send({ movieIds: Array.from({ length: 101 }, (_, index) => index + 1) });
+    const malformed = await agent
+      .post('/request/person-movies')
+      .send({ movieIds: [987_648, 0] });
+    assert.strictEqual(tooMany.status, 400);
+    assert.strictEqual(malformed.status, 400);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
   });
 });
 

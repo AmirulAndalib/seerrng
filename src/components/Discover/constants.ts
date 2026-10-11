@@ -112,6 +112,7 @@ export const QueryFilterOptions = z.object({
   withRuntimeLte: z.string().optional(),
   voteAverageGte: z.string().optional(),
   voteAverageLte: z.string().optional(),
+  voteCountGte: z.string().regex(/^\d+$/).optional(),
   watchRegion: z.string().optional(),
   watchProviders: z.string().optional(),
   status: z.string().optional(),
@@ -123,6 +124,25 @@ export const QueryFilterOptions = z.object({
 });
 
 export type FilterOptions = z.infer<typeof QueryFilterOptions>;
+
+export const DEFAULT_TMDB_RATING_MINIMUM_VOTES = '50';
+
+export const withDefaultTmdbRatingMinimumVotes = (
+  filters: FilterOptions
+): FilterOptions => {
+  if (
+    (filters.sortBy === 'vote_average.asc' ||
+      filters.sortBy === 'vote_average.desc') &&
+    filters.voteCountGte === undefined
+  ) {
+    return {
+      ...filters,
+      voteCountGte: DEFAULT_TMDB_RATING_MINIMUM_VOTES,
+    };
+  }
+
+  return filters;
+};
 
 export const tmdbSortOptions = new Set([
   'popularity.asc',
@@ -216,6 +236,10 @@ export const prepareFilterValues = (
 
   if (values.voteAverageLte) {
     filterValues.voteAverageLte = values.voteAverageLte;
+  }
+
+  if (values.voteCountGte !== undefined) {
+    filterValues.voteCountGte = values.voteCountGte;
   }
 
   if (values.watchProviders) {

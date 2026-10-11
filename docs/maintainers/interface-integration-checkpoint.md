@@ -1325,3 +1325,219 @@ the v3.57.0 GitHub Release remains a draft while the Ubuntu Jammy and Noble PPA
 jobs finish publishing and verifying. Snap, AUR, COPR, Flatpak, Debian, RPM,
 and AppImage checks have passed. No `seerr.home` deployment was run by these
 release checks.
+
+## Open-issue fixes and complete branch/dirty-worktree audit — October 11, 2026
+
+The candidate starts at current `origin/main` `b9b752a8606e8f5436b50147cd3a64ae03893f04`.
+Recovery identities retained before integration are ref
+`recovery/current-main-pre-issue-work-20261011` at that base, stash
+`22143bb0f3679285adb7e4eceb09af41933fdfd0`, and the verified source bundle
+`/tmp/seerrng-validation-20261011-candidate.bundle`. The three Dependabot
+workflow branches were reviewed and merged into the candidate as commits
+`6e5c68054` (#186 Cypress action), `8ae1528a8` (#187 install action), and
+`4a73206f8` (#188 JUnit report action). Their workflow SHA contract tests were
+updated with the pins. The action diffs were checked against the upstream tag
+commits; #186 contains dependency hardening, #187 strengthens checksum
+verification, and #188 includes the fast-uri security update.
+
+All other project-owned remote branch heads are already ancestors of
+`origin/main`. The old local release-integration branches contain four
+patch-unique commits for ROMarrNG DAT catalog, its integration record,
+ChaptarrNG/Audiobookshelf, and the edit-request modal; current `origin/main`
+contains their implementation, regression coverage, and release notes. The
+validation snapshot branch is not a product source branch. External `upstream`
+and contributor-fork branch families were not treated as SeerrNG feature
+branches.
+
+The active worktree changes retain the fixes and regressions for open issues
+#191, #192, #194, #195, and #197, plus the release fragment and action-pin test
+updates. Baseline reproductions and fixed results are recorded separately:
+
+- #191 failed in Playwright because `.swipe-card-body` was transparent; the
+  repaired desktop and narrow captures are
+  `/tmp/seerrng-issue-191-after-desktop.png` and
+  `/tmp/seerrng-issue-191-after-narrow.png` (the original is
+  `/tmp/seerrng-issue-191-before.png`).
+- #192 movie and series requests initially had no `voteCountGte`; the fixed
+  browser checks observed `voteCountGte=50` for both. Explicit minimum-vote
+  options remain available.
+- #194 reproduced the reported `lateststatuscountid` missing-relation error on
+  disposable PostgreSQL; after lowercase underscore aliases, the same query
+  returned all seven zero counts. No live database was used.
+- #195 pressing Enter on “API” stayed on the metadata page; after the fix it
+  navigates to Settings and focuses the API key control. The protected unsaved
+  settings flow remains in place.
+- #197 the Plex response omitted `email`; after the fix the isolated auth
+  regression receives `email`, `plexId`, and `requestCount`, and verifies that
+  credentials remain filtered.
+- Focused Playwright coverage passed 4/4; focused Node route tests passed 3/3;
+  the constants Vitest passed 3/3; PostgreSQL reproduction passed on the
+  disposable `kspls0` service. These are focused receipts, not the complete
+  `validate:development` result.
+
+Dirty-worktree review found that the support-link removal, English empty-message
+payload change, GameLibrary filter overflow fix, reader settings layout and
+its Cypress assertions, request-download asset handling, and edit-request
+regression test are already in current `origin/main`. The local software
+catalog migration uses stale timestamp `179110`; the current tree has its
+renumbered migration at `179113`, so adding the old copy would conflict with
+the migration sequence. Old reader/game/software snapshots lack newer main
+source and were not copied over it. The old validation inventory and tarball
+are excluded by the current validation-engine guide, which prohibits copied
+inventories and bundles. The diagnostic Cypress spec and
+`src/pages/qa-request-edit.tsx` exist only in scratch worktrees; neither is
+shipped. The QA page would expose a development fixture as a routed page. The
+old snapshot edits that weaken or rename the explicit John visual-acceptance
+gate were not applied. No recovery worktree or stash was deleted.
+
+The no-flag `pnpm validate:development` was attempted on `kspls0` for candidate
+commit `4a73206f8c4e7ef3fec4e91ab61c71e935d3834e`, source SHA-256
+`bb148b432e295fe8b66a01d824aff98f4a02b8106ca3dc48d62ebefd696941e2`. It
+stopped in prerequisite admission with status `prerequisite-blocked`; no full
+stage or repository test suite ran. The discovery preamble selected 530 Vitest,
+0 Node TypeScript, 58 Node JavaScript, and 78 tooling files, with zero declared
+platform exclusions. Actual execution was 0 suites, 0 passed, 0 failed, and 0
+skipped. The log and preparation report are retained on `kspls0` at
+`/tmp/seerrng-validation-20261011/full-gate.log` and
+`/tmp/seerrng-native-validation-s5Bcxk/native-context-report.json`.
+
+Required preparation was unavailable for documentation dependencies; Helm,
+chart-testing, yamllint and yamale; Lychee; .NET SDK 9; the isolated Docker
+fixture proof; and authenticated complete Git history/tag closure. The local
+runner also leaves required GitHub PR metadata pending. A second attempt of the
+same gate ran inside `unshare --user --map-root-user --net`; its report verified
+an isolated loopback-only namespace, but it remained prerequisite-blocked on
+the other items above and again executed zero suites. That log and report are
+`/tmp/seerrng-validation-20261011/full-gate-isolated.log` and
+`/tmp/seerrng-native-validation-srGOWU/native-context-report.json`. The default
+no-flag call in `bin/run-local-validation.mjs` does not provide the optional
+`verifyDockerFixture`, `verifyGitHistory`, or reviewed-PR-metadata callbacks
+accepted by `createNativeStageContext`, so installing the missing CLIs alone
+cannot complete those proof checks. Focused verification remains separate:
+Playwright passed 4/4, route tests passed 3/3, the discovery constants Vitest
+passed 3/3, and the two action-contract files passed 18/18 under an isolated
+namespace. PostgreSQL reproduction passed on the disposable `kspls0` database.
+
+The full gate remains incomplete; discovery counts are not execution evidence.
+Release-note preview, final commit/push, release publication and issue closure
+remain pending. Browser screenshots are automated evidence; they do not replace
+the required human visual acceptance for this interface release. This receipt
+was appended after the recorded gate attempt, so the resulting worktree has not
+been represented as a completed final gate candidate.
+
+### Additional main-worktree changes found during finalization — October 11, 2026
+
+The checkout was moved back to `main` at `b9b752a8606e8f5436b50147cd3a64ae03893f04`
+with a separate dirty built-in-TLS fix and its release-note fragment. The latest
+stash `stash@{0}` retained the issue-fix candidate and its Playwright/Vitest
+regressions; it was applied without dropping the stash. The three reviewed
+Dependabot merge commits were fast-forwarded onto `main`, leaving local `main`
+at `4a73206f8c4e7ef3fec4e91ab61c71e935d3834e` while `origin/main` remains at
+the prior base.
+
+The TLS fix addresses Next.js server-side page/API requests that were sent to
+the public HTTP listener after built-in HTTPS repurposed that port for redirect
+or upgrade handling. It adds an ephemeral listener bound to `127.0.0.1`, points
+server-side API requests at that listener only while built-in TLS is active,
+clears the setting when TLS is disabled, and includes the listener in startup
+error handling and graceful shutdown. Focused tests were added for loopback
+binding, private API access, public HTTP upgrade behavior, and invalid internal
+ports. This is a security-sensitive listener change and requires the full
+regression review on the integrated candidate.
+
+GitHub's live open-issue list contains six issues, not five: #191, #192, #194,
+#195, #197, and #198. Issue #198 asks the documentation to name Issuarr without
+removing Mylar3. The Issuarr project's own API guide states that its web API is
+the same as Mylar3's; the SeerrNG connector continues to use the existing
+`mylar3` service type. User-facing comics, companion-service, setup-assistant,
+Unraid, release-calendar, indexer-search, request-status, reader, API-compatibility,
+and README documentation now mention Issuarr while retaining Mylar3 guidance.
+The combined settings/discovery/auth/request-status release fragment also
+records the documentation update. Docs build and link checks remain pending.
+
+The installed-tool `pnpm validate:development` attempt on `kspls0` used the
+previous five-issue candidate. Documentation dependencies, chart and link
+tools, and .NET SDK 9 were installed in disposable scratch paths and verified
+against their frozen lock or published checksums. Preparation now reports three
+required blockers: private Docker fixture proof, complete Git history/tag
+proof, and chart lint's required target-ref proof. Required release-note and
+GitHub PR metadata also remain pending because this is a direct-to-main
+candidate with no PR. No full stage ran. The separate `--tests-only` run is
+still executing on the earlier candidate; its final counts must not be applied
+to the integrated TLS/docs candidate.
+
+## Reported issues and dirty-tree candidate verification — October 11, 2026
+
+This follow-up starts from `main`/`origin/main` at
+`ccec04c9cab2a7a537528ee1d56df1533b5ad8f4`. The current dirty tree includes
+all reported issue work, the unrelated retained documentation and validation
+changes, and the pending feature/doc fragments. The local complete validation
+engine has not been represented as passing. This candidate has not yet been
+pushed, so its exact GitHub-hosted Mode 2 result is pending.
+
+Issue reproduction and current result:
+
+- #191: the desktop and narrow Playwright baseline showed the swipe-card text
+  surface was transparent over stacked cards. The shared semantic card surface
+  is now opaque. Final screenshots are `/tmp/seerrng-issue-191-after-desktop.png`
+  and `/tmp/seerrng-issue-191-after-narrow.png`.
+- #192: browser requests for both movie and series rating sorts lacked a
+  minimum vote threshold. Rating sorts now default to 50 votes and expose a
+  selectable minimum; final Playwright coverage confirms `voteCountGte=50` for
+  both.
+- #194: the PostgreSQL failure was reproduced on an isolated disposable
+  PostgreSQL 17 database. PostgreSQL folded the unquoted mixed-case derived
+  table alias, so its later join referenced a relation that did not exist.
+  Snake-case aliases fix the query; the isolated replay returned all seven
+  expected zero counts. No live database was touched.
+- #195: submitting “API” on Settings Search previously left the current page
+  unchanged. The search now opens the main settings page and focuses the API
+  key. The final Playwright check passed.
+- #197: Plex login returned the ordinary filtered-user response without the
+  fields required by strict clients, including request counts. The route now
+  populates counts and returns the authenticated profile shape; its regression
+  verifies required fields and confirms password/token values remain absent.
+- #198: documentation omitted Issuarr. The relevant docs and README now name
+  Issuarr and retain Mylar3 compatibility guidance and the existing connector.
+- Person-page movie requests are implemented as an administrator-opt-in,
+  bounded 100-ID endpoint and UI action. Requests still use normal per-title
+  permissions, quota, duplicate, and blocklist handling.
+- The Sportarr Port value appeared blank because number inputs were omitted
+  from the shared dark form-control selector. The shared role now styles number
+  inputs; the final desktop/narrow Playwright check entered `1867`, observed a
+  white foreground on a dark input, and passed. Captures are
+  `/tmp/seerrng-sportarr-port-desktop.png` and
+  `/tmp/seerrng-sportarr-port-narrow.png`.
+- Saved per-user destination folders were ignored when new requests did not
+  submit an explicit folder. Radarr and Sonarr creation regressions now confirm
+  the requester's saved destination is used.
+- The partial-request check only rejected episode subsets. The documented
+  setting requires every unavailable season, so creation and edits now compare
+  the selected season set with every eligible unavailable season. Regressions
+  reject one of three seasons and accept all three on both paths. An existing
+  single-episode Episode Queue exception remains bounded to its one starting
+  episode.
+- The screenshot's Carrie email says the request was pending approval. SeerrNG
+  dispatches TV requests to Sonarr only after approval; the adapter and
+  approved-request subscriber tests confirm selected-season monitoring and
+  dispatch. A live Sonarr round trip was not available, so the reporter's
+  post-approval monitoring symptom remains unconfirmed in their environment.
+- The SABnzbd adapter and queue-client fixtures pass. The screenshot's private
+  endpoint and masked credentials were not contacted; whether that connection
+  fails against the user's SABnzbd server remains unknown.
+
+Focused verification on this source: `pnpm test:node` over auth, discovery,
+request, settings, Sonarr, request-status, SABnzbd, and OpenAPI suites passed
+600/600 with no skips. The final `pnpm build` exited 0 after the partial-season
+fix and formatting. `pnpm typecheck` passed. Five production-build Playwright
+specs passed. Changed-file Prettier, `git diff --check`, the 72 UI shared-style
+checks, and all 17 release-note validator tests passed. The PostgreSQL
+regression had separately passed 1/1 on its isolated disposable database.
+These are focused/local receipts; they do not replace the exact-candidate
+hosted engine result.
+
+At this checkpoint the release-note preview, commit/push, GitHub-hosted Mode 2,
+release workflow, publication/signing/assets, announcement, and issue closure
+are still pending. There are no currently open PRs to merge. The latest
+CodeQL, Trivy, and Dependabot baselines had no open findings; GitHub secret
+scanning is disabled, and no secret-scan result is claimed.

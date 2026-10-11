@@ -142,7 +142,7 @@ test('hosted orchestration retains the original pinned native actions and comman
       'snapetech/seerrng-codeql-models@0.0.15',
     ],
     cypress: [
-      'cypress-io/github-action@789d836053c5ca389c2905fc0c9f2909da778c46',
+      'cypress-io/github-action@c541a95ea92d9239347a2355f2e895cd4b3f8060',
       'pnpm cypress:build',
       'start: env E2E_TESTS=true pnpm start',
     ],

@@ -417,6 +417,12 @@ the raw JUnit, native Node, Cypress, and Playwright result files alongside seale
 admissions, evidence manifests, parsed closure summaries, success receipts, and
 attempt-scoped ledgers.
 
+The operator-managed Linux validation host has a separate 48-hour retention
+policy for abandoned top-level `/tmp/seerrng-*` scratch paths. See
+[Local Validation Scratch Retention](../../docs/maintainers/local-validation-scratch-retention.md).
+This host cleanup does not replace the engine's process cleanup proof or alter
+the retained result evidence described above.
+
 The engine does not install development dependencies, provision missing tools,
 apply live migrations, mutate provider accounts, repair source code, or approve
 code review. Visual inspection and live-provider verification, when applicable,

@@ -854,6 +854,11 @@ describe('POST /auth/plex', () => {
 
       const response = await loginPromise;
       assert.strictEqual(response.status, 200);
+      assert.strictEqual(response.body.email, 'friend@seerr.dev');
+      assert.strictEqual(response.body.plexId, 2);
+      assert.strictEqual(response.body.requestCount, 0);
+      assert.strictEqual(response.body.plexToken, undefined);
+      assert.strictEqual(response.body.password, undefined);
       const persisted = await userRepository.findOneByOrFail({ id: 2 });
       assert.strictEqual(persisted.permissions, Permission.ADMIN);
     } finally {

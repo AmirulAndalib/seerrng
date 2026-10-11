@@ -2238,14 +2238,23 @@ export class MediaRequest {
     }
     const selectedServer = requestedServer ?? defaultServer;
     const serverId = selectedServer?.id;
+    const selectedServiceType =
+      requestBody.mediaType === MediaType.MOVIE ? 'radarr' : 'sonarr';
+    const requestRootFolder = selectedServer
+      ? requestUser.settings?.requestRootFolders?.[
+          `${selectedServiceType}:${selectedServer.id}`
+        ]
+      : undefined;
     const selectedSonarr =
       requestBody.mediaType === MediaType.TV
         ? (selectedServer as SonarrSettings)
         : undefined;
 
     let rootFolder = useAdvancedOptions
-      ? (requestBody.rootFolder ?? selectedServer?.activeDirectory)
-      : selectedServer?.activeDirectory;
+      ? (requestBody.rootFolder ??
+        requestRootFolder ??
+        selectedServer?.activeDirectory)
+      : (requestRootFolder ?? selectedServer?.activeDirectory);
     let profileId = useAdvancedOptions
       ? (requestBody.profileId ?? selectedServer?.activeProfileId)
       : selectedServer?.activeProfileId;
@@ -2650,7 +2659,8 @@ export class MediaRequest {
       }
 
       const getFinalSeasons = async (
-        requestMedia: Media
+        requestMedia: Media,
+        selections: SeasonEpisodeSelection[] = requestedSeasonSelections
       ): Promise<SeasonEpisodeSelection[]> => {
         const activeRequestedSeasonRows: SeasonRequest[] = (
           await loadDestinationRequests(requestMedia)
@@ -2696,7 +2706,7 @@ export class MediaRequest {
             );
         }
 
-        return requestedSeasonSelections.flatMap((selection) => {
+        return selections.flatMap((selection) => {
           if (fullyRequestedSeasons.has(selection.seasonNumber)) {
             return [];
           }
@@ -2718,7 +2728,57 @@ export class MediaRequest {
 
       if (finalSeasonSelections.length === 0) {
         throw new NoSeasonsAvailableError('No seasons available to request');
-      } else if (
+      }
+
+      if (!settings.main.partialRequestsEnabled) {
+        const hasSingleQueuedEpisode =
+          watchAheadEpisodeCount > 0 &&
+          finalSeasonSelections.length === 1 &&
+          finalSeasonSelections[0].episodeNumbers?.length === 1;
+        if (
+          finalSeasonSelections.some(
+            (selection) => selection.episodeNumbers !== undefined
+          ) &&
+          !hasSingleQueuedEpisode
+        ) {
+          throw new RequestPermissionError(
+            'Partial series requests are disabled by the administrator.'
+          );
+        }
+
+        if (!hasSingleQueuedEpisode) {
+          const allEligibleSeasonSelections = tmdbMediaShow.seasons
+            .filter(
+              (season) =>
+                season.episode_count > 0 &&
+                (settings.main.enableSpecialEpisodes ||
+                  season.season_number > 0)
+            )
+            .map(({ season_number }) => ({ seasonNumber: season_number }));
+          const allUnavailableSelections = await getFinalSeasons(
+            media,
+            allEligibleSeasonSelections
+          );
+          const requestedSeasonNumbers = new Set(
+            finalSeasonSelections.map(({ seasonNumber }) => seasonNumber)
+          );
+          const allUnavailableSeasonNumbers = new Set(
+            allUnavailableSelections.map(({ seasonNumber }) => seasonNumber)
+          );
+          if (
+            requestedSeasonNumbers.size !== allUnavailableSeasonNumbers.size ||
+            [...allUnavailableSeasonNumbers].some(
+              (seasonNumber) => !requestedSeasonNumbers.has(seasonNumber)
+            )
+          ) {
+            throw new RequestPermissionError(
+              'Partial series requests are disabled by the administrator.'
+            );
+          }
+        }
+      }
+
+      if (
         !ignoreQuota &&
         quotas.tv.limit &&
         finalSeasonSelections.length > (quotas.tv.remaining ?? 0)
