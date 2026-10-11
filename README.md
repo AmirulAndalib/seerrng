@@ -63,7 +63,7 @@ This fork is maintained by snapetech. Upstream Seerr remains the base project fo
 - Music discovery and metadata through MusicBrainz, ListenBrainz, Cover Art Archive, TheAudioDB, and archive-backed artwork sources.
 - Book discovery and identity matching through Open Library, ISBN-10/ISBN-13 normalization, foreign book IDs, and edition IDs.
 - Audiobook discovery from connected audiobook catalogs, with author and narrator filtering and no ebook-only search results.
-- Comic discovery through ComicVine and magazine discovery through Google Books or LazyLibrarian, with Mylar3, its API-compatible successor Issuarr, Kapowarr, or BackIssue handling comic acquisition and LazyLibrarian handling magazines.
+- Comic discovery through ComicVine and magazine discovery through Google Books or LazyLibrarian. For new comic automation setups, SeerrNG recommends [Issuarr](https://github.com/issuarr/issuarr), the actively developed successor to [Mylar3](https://github.com/MylarComics/mylar3); existing Mylar3 connections remain supported through the same service type. Kapowarr and BackIssue are also supported comic backends, and LazyLibrarian handles magazines.
 - Separate ebook and audiobook service routing so both formats can be requested, approved, scanned, retried, and removed independently.
 - One BookshelfNG instance can manage both formats on the same book record.
   When both formats are enabled, their separate SeerrNG service entries can

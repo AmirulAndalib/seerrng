@@ -84,11 +84,14 @@ node scripts/setup-assistant.mjs --connections --apps radarr,sonarr,prowlarr --h
 ```
 
 The report supports SeerrNG integrations for Radarr, Sonarr, Lidarr,
-BookshelfNG, ChaptarrNG, Prowlarr, LazyLibrarian, Mylar3-compatible Issuarr,
-Kapowarr, BackIssue, ROMarrNG, and QuestarrNG. qBittorrent has no SeerrNG
-service form, so it is not included. Add Issuarr using the `mylar3` app ID and
-SeerrNG's **Mylar3** service type. BookshelfNG and ChaptarrNG require two
-SeerrNG entries, one for Books and one for Audiobooks.
+BookshelfNG, ChaptarrNG, Prowlarr, LazyLibrarian, Issuarr, Mylar3, Kapowarr,
+BackIssue, ROMarrNG, and QuestarrNG. For new comic automation setups, prefer
+[Issuarr](https://github.com/issuarr/issuarr), the actively developed Mylar3
+successor. Existing [Mylar3](https://github.com/MylarComics/mylar3)
+installations remain supported. qBittorrent has no SeerrNG service form, so it
+is not included. Add either app using the `mylar3` app ID and SeerrNG's
+**Mylar3** service type. BookshelfNG and ChaptarrNG require two SeerrNG
+entries, one for Books and one for Audiobooks.
 
 `localhost` is relative to the machine or container where SeerrNG runs. Use it
 only when SeerrNG and the target app share a network namespace. If SeerrNG runs
@@ -179,8 +182,8 @@ you want to regenerate them.
 
 These profiles are examples, not required SeerrNG dependencies. Choose a
 smaller profile when you want fewer containers. BookshelfNG and ChaptarrNG are
-alternatives for book automation; Mylar3, Kapowarr, and BackIssue are
-alternatives for comics. The `all-media` profile chooses BookshelfNG and
+alternatives for book automation; Issuarr, Mylar3, Kapowarr, and BackIssue are
+alternatives for comics. The `all-media` profile includes BookshelfNG and
 Mylar3; Issuarr can use the same SeerrNG connection, but the generated profile
 still writes a Mylar3 container definition. Add or remove providers with
 `--apps` for a different choice. For
