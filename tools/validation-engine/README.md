@@ -27,6 +27,27 @@ Mode 3 is not currently an accepted finalization path. Its implementation and
 documentation must be reconciled with the deferred design decisions identified
 below before activation.
 
+### Proof-parent security restriction
+
+The shared-UID proof-parent helper is blocked for both local and distributed
+execution. It runs repository code as UID 0 alongside privileged control
+sockets and infrastructure logs. Dropping Linux capabilities does not prevent
+that code from accessing another process's sockets and files under the same UID.
+The concrete host adapter refuses infrastructure startup, the Python helper
+refuses execution before privileged operations, and the internal Mode 1 request
+entry rejects this topology before reading the requested files.
+
+Use complete GitHub-hosted Mode 2 validation while this restriction is in place.
+Mode 1 cannot use this proof-parent path to satisfy its required containment gate;
+a blocked run is incomplete. Plans and pure protocol regression fixtures remain
+available, and their results do not prove production containment. Restoring this
+helper requires separate OS identities for repository processes, inaccessible
+proof and Docker control sockets, and infrastructure evidence protected from
+repository writes. Environment flags and capability dropping alone are insufficient.
+
+Retained network-lease evidence contains only token digests. Raw bearer tokens
+are excluded and rejected during evidence reconciliation.
+
 ## Developer commands
 
 Run from the repository root:
@@ -47,12 +68,18 @@ pnpm validate:development
 - `--tests-only` executes the local repository-test plan through its native
   runners. It does not claim CodeQL, production-build, Cypress, Playwright,
   hosted-job, or pull-request metadata coverage.
-- Test subprocesses receive an allowlisted environment and private temporary
-  home/config/cache paths. Common HTTP clients block non-loopback traffic and
-  fetch redirects fail closed, but this is not an OS sandbox: test code running
-  as the invoking OS user can still access that user's files and open raw
-  sockets. Run untrusted source only in a disposable guest with credentials and
-  provider data absent.
+- Test subprocesses run from a disposable source copy inside Linux bubblewrap.
+  The workspace and scratch outputs are the only writable host mounts; installed
+  dependencies are mounted read-only, and dependency roots must be real
+  directories within the candidate checkout; escaping symlinks fail closed.
+  The invoking user's home, temporary
+  files, common service sockets, `/opt`, `/srv`, and the network namespace are
+  isolated, with loopback available for tests that start local servers. The
+  system root remains read-only for runtime tools; keep sensitive data out of
+  other host paths and use a disposable guest for highly untrusted source. The
+  child environment is allowlisted and receives private config/cache paths.
+  This mode fails before starting tests when bubblewrap or the required Linux
+  namespaces are unavailable; use hosted GitHub validation on other platforms.
 - With no mode flag, the engine admits the complete local staged gate. It runs
   only when the required source, dependency, toolchain, fixture, network, and
   browser-isolation boundaries can be proved. Otherwise it stops incomplete and
