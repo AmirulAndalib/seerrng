@@ -730,7 +730,7 @@ test('argument chunks retain every filename without shell composition or exceedi
   assert.throws(() => chunkArguments(['x'.repeat(600)], 500), /budget/);
 });
 
-test('isolation forwards only required host settings and owns credential directories', () => {
+test('isolation allowlists child environment and owns credential directories', () => {
   const inherited = {
     NODE_ENV: 'production',
     CONFIG_DIRECTORY: '/live',
@@ -743,14 +743,18 @@ test('isolation forwards only required host settings and owns credential directo
     VITEST: 'true',
     CI: 'true',
     GITHUB_TOKEN: 'github-secret',
+    GH_TOKEN: 'gh-secret',
     AWS_SECRET_ACCESS_KEY: 'aws-secret',
     NPM_TOKEN: 'npm-secret',
-    HTTPS_PROXY: 'http://proxy.example.invalid:8080',
+    SSH_AUTH_SOCK: '/run/user/1000/ssh-agent.sock',
+    GIT_CONFIG_GLOBAL: '/secret/gitconfig',
+    HTTPS_PROXY: 'http://proxy.example.test:8080',
     CUSTOM_SECRET: 'secret',
     HOME: '/home/maintainer',
     USERPROFILE: 'C:\\Users\\maintainer',
     ALLOW_NETWORK: 'true',
     SEERR_TEST_FAIL_ON_NETWORK: 'false',
+    LC_ALL: 'en_CA.UTF-8',
     PATH: '/tools',
     path: '/lower-priority-path',
   };
@@ -759,20 +763,28 @@ test('isolation forwards only required host settings and owns credential directo
   assert.equal(isolated.CONFIG_DIRECTORY, '/owned');
   assert.equal(isolated.ALLOW_NETWORK, 'false');
   assert.equal(isolated.SEERR_TEST_FAIL_ON_NETWORK, 'true');
-  assert.equal(isolated.DB_HOST, undefined);
-  assert.equal(isolated.NODE_OPTIONS, undefined);
-  assert.equal(isolated.CI, undefined);
-  assert.equal(isolated.GITHUB_TOKEN, undefined);
-  assert.equal(isolated.AWS_SECRET_ACCESS_KEY, undefined);
-  assert.equal(isolated.NPM_TOKEN, undefined);
-  assert.equal(isolated.HTTPS_PROXY, undefined);
-  assert.equal(isolated.CUSTOM_SECRET, undefined);
-  assert.equal(isolated.PATH, '/tools');
   assert.equal(isolated.HOME, '/owned');
   assert.equal(isolated.USERPROFILE, '/owned');
   assert.equal(isolated.TMPDIR, '/owned');
+  assert.equal(isolated.TMP, '/owned');
+  assert.equal(isolated.TEMP, '/owned');
   assert.equal(isolated.XDG_CONFIG_HOME, join('/owned', 'xdg-config'));
   assert.equal(isolated.XDG_CACHE_HOME, join('/owned', 'xdg-cache'));
+  assert.equal(isolated.APPDATA, join('/owned', 'AppData', 'Roaming'));
+  assert.equal(isolated.LOCALAPPDATA, join('/owned', 'AppData', 'Local'));
+  assert.equal(isolated.DB_HOST, undefined);
+  assert.equal(isolated.GITHUB_TOKEN, undefined);
+  assert.equal(isolated.GH_TOKEN, undefined);
+  assert.equal(isolated.AWS_SECRET_ACCESS_KEY, undefined);
+  assert.equal(isolated.NPM_TOKEN, undefined);
+  assert.equal(isolated.SSH_AUTH_SOCK, undefined);
+  assert.equal(isolated.GIT_CONFIG_GLOBAL, undefined);
+  assert.equal(isolated.HTTPS_PROXY, undefined);
+  assert.equal(isolated.LC_ALL, 'en_CA.UTF-8');
+  assert.equal(isolated.NODE_OPTIONS, undefined);
+  assert.equal(isolated.CI, undefined);
+  assert.equal(isolated.CUSTOM_SECRET, undefined);
+  assert.equal(isolated.PATH, '/tools');
   assert.equal(inherited.CONFIG_DIRECTORY, '/live');
   assert.equal(inherited.GITHUB_TOKEN, 'github-secret');
   assert.equal(inherited.HOME, '/home/maintainer');

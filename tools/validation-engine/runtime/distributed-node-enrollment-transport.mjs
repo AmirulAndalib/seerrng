@@ -1,9 +1,8 @@
 // Copyright (c) snapetech and SeerrNG contributors.
-// First-contact enrollment is unauthenticated. Keep its listener on loopback
-// while Mode 3 is dormant and the enrollment protocol lacks per-node auth.
-// This listener remains loopback-only for regression tests. Do not expose it
-// through an operational entry point until enrollment has per-node
-// authentication and the deferred shared-key design has been replaced.
+// This prototype is retained for focused regression tests only. It does not
+// authenticate callers or encrypt the shared cluster key; the public runner
+// keeps every Mode 3 network entry point disabled until that protocol is
+// replaced with authenticated, encrypted per-node credentials.
 import { createServer, request as httpRequest } from 'node:http';
 import { isIP } from 'node:net';
 
@@ -19,7 +18,7 @@ import {
 export const NODE_ENROLLMENT_ROUTE = '/engine/v1/nodes/enroll';
 export const SUPPORTED_APPLICATIONS_ROUTE = '/engine/v1/applications';
 export const NODE_ENROLLMENT_TRUST_BOUNDARY =
-  'loopback-regression-test-only-unauthenticated-first-contact';
+  'loopback-test-only-unauthenticated-prototype';
 export const DEFAULT_NODE_ENROLLMENT_BODY_BYTES = 16 * 1024;
 export const MAX_NODE_ENROLLMENT_BODY_BYTES = 64 * 1024;
 export const DEFAULT_NODE_ENROLLMENT_TIMEOUT_MS = 10_000;
@@ -59,6 +58,17 @@ function ipAddress(value, label) {
   return value;
 }
 
+function assertPrototypeTestTransport(host, allowPrototypeTestTransport) {
+  if (allowPrototypeTestTransport !== true)
+    throw new Error(
+      'Unauthenticated Mode 3 transport is disabled outside focused tests'
+    );
+  if (!isLoopbackAddress(host))
+    throw new Error(
+      'Unauthenticated Mode 3 transport is restricted to loopback tests'
+    );
+}
+
 export function isPrivateLanAddress(value) {
   if (typeof value !== 'string') return false;
   let address = value.trim().toLowerCase().split('%', 1)[0];
@@ -86,7 +96,9 @@ export function isPrivateLanAddress(value) {
 
 function isLoopbackAddress(value) {
   if (typeof value !== 'string') return false;
-  const address = value.toLowerCase().split('%', 1)[0];
+  let address = value.trim().toLowerCase().split('%', 1)[0];
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/u.exec(address);
+  if (mapped) address = mapped[1];
   if (isIP(address) === 4) return address.startsWith('127.');
   return address === '::1';
 }
@@ -321,14 +333,12 @@ export async function startNodeEnrollmentServer({
   port = 0,
   requestBodyLimitBytes = DEFAULT_NODE_ENROLLMENT_BODY_BYTES,
   requestTimeoutMs = DEFAULT_NODE_ENROLLMENT_TIMEOUT_MS,
+  allowPrototypeTestTransport = false,
 }) {
   if (typeof controllerConfigPath !== 'string' || !controllerConfigPath)
     throw new Error('Node enrollment requires a controller config path');
   const bindHost = ipAddress(host, 'Node enrollment bind host');
-  if (!isPrivateLanAddress(bindHost) || !isLoopbackAddress(bindHost))
-    throw new Error(
-      'Node enrollment listener is restricted to loopback while Mode 3 is dormant'
-    );
+  assertPrototypeTestTransport(bindHost, allowPrototypeTestTransport);
   const bindPort = listenPort(port);
   const requestLimit = bodyLimit(
     requestBodyLimitBytes,
@@ -510,11 +520,13 @@ export async function requestNodeEnrollment({
   timeoutMs: timeoutValue = DEFAULT_NODE_ENROLLMENT_TIMEOUT_MS,
   responseBodyLimitBytes = DEFAULT_NODE_ENROLLMENT_BODY_BYTES,
   signal,
+  allowPrototypeTestTransport = false,
 }) {
   const hostname = ipAddress(
     controllerIpAddress,
     'Node enrollment controller IP address'
   );
+  assertPrototypeTestTransport(hostname, allowPrototypeTestTransport);
   const port = controllerPort(controllerPortValue);
   const requestValueNormalized = createNodeEnrollmentRequest(requestValue);
   const responseLimit = bodyLimit(
@@ -618,11 +630,13 @@ export async function requestSupportedApplications({
   timeoutMs: timeoutValue = DEFAULT_NODE_ENROLLMENT_TIMEOUT_MS,
   responseBodyLimitBytes = MAX_NODE_ENROLLMENT_BODY_BYTES,
   signal,
+  allowPrototypeTestTransport = false,
 }) {
   const hostname = ipAddress(
     controllerIpAddress,
     'Supported applications controller IP address'
   );
+  assertPrototypeTestTransport(hostname, allowPrototypeTestTransport);
   const port = controllerPort(controllerPortValue);
   const responseLimit = bodyLimit(
     responseBodyLimitBytes,

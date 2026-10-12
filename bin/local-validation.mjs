@@ -33,6 +33,8 @@ import {
   createDistributedNativeCaseLedger,
   isExplicitlySkippedDistributedNativeCaseLedger,
 } from '../tools/validation-engine/runtime/distributed-native-case-ledger.mjs';
+// eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- Native Node tooling cannot resolve the application's TS aliases.
+import { createIsolatedTestEnvironment } from '../tools/validation-engine/runtime/test-environment.mjs';
 
 const roots = ['server', 'src', 'bin', 'scripts', 'deploy', 'packaging'];
 const candidate = /\.(?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$/;
@@ -661,39 +663,7 @@ export function createPlan(
 }
 
 export function isolatedEnvironment(directory, inherited = process.env) {
-  const env = {};
-  const inheritedAllowlist = new Set([
-    'COMSPEC',
-    'LANG',
-    'LC_ALL',
-    'PATH',
-    'PATHEXT',
-    'SYSTEMROOT',
-    'TZ',
-    'WINDIR',
-  ]);
-  for (const [key, value] of Object.entries(inherited)) {
-    const name = key.toUpperCase();
-    if (!inheritedAllowlist.has(name) || typeof value !== 'string') continue;
-    if (key === name || !Object.hasOwn(env, name)) env[name] = value;
-  }
-  return {
-    ...env,
-    NODE_ENV: 'test',
-    CONFIG_DIRECTORY: directory,
-    ALLOW_NETWORK: 'false',
-    SEERR_TEST_FAIL_ON_NETWORK: 'true',
-    NEXT_TELEMETRY_DISABLED: '1',
-    HOME: directory,
-    USERPROFILE: directory,
-    TMP: directory,
-    TEMP: directory,
-    TMPDIR: directory,
-    XDG_CONFIG_HOME: join(directory, 'xdg-config'),
-    XDG_CACHE_HOME: join(directory, 'xdg-cache'),
-    APPDATA: join(directory, 'AppData', 'Roaming'),
-    LOCALAPPDATA: join(directory, 'AppData', 'Local'),
-  };
+  return createIsolatedTestEnvironment(directory, inherited);
 }
 
 export function removeOwnedTemporaryDirectory(directory, parent = tmpdir()) {
