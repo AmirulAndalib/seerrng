@@ -56,6 +56,31 @@ function ipAddress(value, label) {
   return value;
 }
 
+export function isPrivateLanAddress(value) {
+  if (typeof value !== 'string') return false;
+  let address = value.trim().toLowerCase().split('%', 1)[0];
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/u.exec(address);
+  if (mapped) address = mapped[1];
+  if (isIP(address) === 4) {
+    const [a, b] = address.split('.').map(Number);
+    return (
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    );
+  }
+  if (isIP(address) === 6) {
+    return (
+      address === '::1' ||
+      /^f[cd][0-9a-f]{2}:/u.test(address) ||
+      /^fe[89ab][0-9a-f]:/u.test(address)
+    );
+  }
+  return false;
+}
+
 function listenPort(value) {
   return boundedInteger(value, 'Node enrollment listen port', {
     minimum: 0,
@@ -285,6 +310,12 @@ export async function startNodeEnrollmentServer({
   if (typeof controllerConfigPath !== 'string' || !controllerConfigPath)
     throw new Error('Node enrollment requires a controller config path');
   const bindHost = ipAddress(host, 'Node enrollment bind host');
+  if (
+    bindHost !== '0.0.0.0' &&
+    bindHost !== '::' &&
+    !isPrivateLanAddress(bindHost)
+  )
+    throw new Error('Node enrollment bind host must be a private LAN address');
   const bindPort = listenPort(port);
   const requestLimit = bodyLimit(
     requestBodyLimitBytes,
@@ -294,6 +325,11 @@ export async function startNodeEnrollmentServer({
   const sockets = new Set();
 
   const server = createServer(async (request, response) => {
+    if (!isPrivateLanAddress(request.socket.remoteAddress)) {
+      request.resume();
+      sendError(response, 403, 'forbidden');
+      return;
+    }
     if (request.url === SUPPORTED_APPLICATIONS_ROUTE) {
       request.resume();
       if (request.method !== 'GET') {

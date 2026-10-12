@@ -14,6 +14,7 @@ import {
 // eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- These focused tests run in native Node without application aliases.
 import {
   DEFAULT_NODE_ENROLLMENT_BODY_BYTES,
+  isPrivateLanAddress,
   NODE_ENROLLMENT_ROUTE,
   NODE_ENROLLMENT_TRUST_BOUNDARY,
   requestNodeEnrollment,
@@ -535,4 +536,39 @@ test('client stops on timeout and caller abort', async (t) => {
     controller.abort();
     await assert.rejects(pending, { code: 'ERR_NODE_ENROLLMENT_ABORTED' });
   });
+});
+
+test('enrollment trust boundary is limited to private LAN addresses', async () => {
+  for (const address of [
+    '10.1.2.3',
+    '127.0.0.1',
+    '172.16.0.1',
+    '172.31.255.254',
+    '192.168.1.20',
+    '169.254.1.1',
+    '::1',
+    'fd00::1',
+    'fe80::1',
+    '::ffff:192.168.1.20',
+  ])
+    assert.equal(isPrivateLanAddress(address), true, address);
+  for (const address of [
+    '8.8.8.8',
+    '172.15.0.1',
+    '172.32.0.1',
+    '192.169.0.1',
+    '2001:4860:4860::8888',
+    '::ffff:8.8.8.8',
+    'localhost',
+    '',
+    undefined,
+  ])
+    assert.equal(isPrivateLanAddress(address), false, String(address));
+  await assert.rejects(
+    startNodeEnrollmentServer({
+      controllerConfigPath: '/nonexistent/controller.cfg',
+      host: '8.8.8.8',
+    }),
+    /private LAN address/
+  );
 });
