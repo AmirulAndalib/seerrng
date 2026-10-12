@@ -1014,7 +1014,11 @@ test('the internal outer-sandbox mode fails closed without its bound marker', as
   await assert.rejects(
     runCommand(command, {
       root,
-      env: { ...process.env, NODE_OPTIONS: '' },
+      env: {
+        ...process.env,
+        NODE_OPTIONS: '',
+        VALIDATION_OUTER_SANDBOX_TOKEN: '',
+      },
       stdout: sink,
       stderr: sink,
     }),
@@ -1035,7 +1039,11 @@ test('the internal outer-sandbox mode requires its bound marker', async () => {
   await assert.rejects(
     runCommand(command, {
       root,
-      env: { ...process.env, NODE_OPTIONS: '' },
+      env: {
+        ...process.env,
+        NODE_OPTIONS: '',
+        VALIDATION_OUTER_SANDBOX_TOKEN: '0'.repeat(64),
+      },
       stdout: sink,
       stderr: sink,
     }),

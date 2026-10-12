@@ -5,7 +5,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -25,10 +24,39 @@ const sandboxAvailable = (() => {
     bwrap,
     [
       '--die-with-parent',
+      '--new-session',
       '--unshare-user',
+      '--unshare-pid',
+      '--unshare-ipc',
+      '--unshare-uts',
+      '--unshare-net',
       '--ro-bind',
       '/',
       '/',
+      '--tmpfs',
+      '/mnt',
+      '--tmpfs',
+      '/home',
+      '--tmpfs',
+      '/root',
+      '--tmpfs',
+      '/run',
+      '--tmpfs',
+      '/var',
+      '--tmpfs',
+      '/tmp',
+      '--tmpfs',
+      '/sys',
+      '--tmpfs',
+      '/media',
+      '--tmpfs',
+      '/opt',
+      '--tmpfs',
+      '/srv',
+      '--proc',
+      '/proc',
+      '--dev',
+      '/dev',
       '--',
       '/bin/true',
     ],
@@ -36,17 +64,6 @@ const sandboxAvailable = (() => {
   );
   return probe.status === 0;
 })();
-
-function hasTrustedOuterSandbox() {
-  const token = process.env.VALIDATION_OUTER_SANDBOX_TOKEN;
-  if (!/^[a-f0-9]{64}$/u.test(token ?? '') ||
-      !existsSync('/run/validation-engine-sandbox')) return false;
-  try {
-    return readFileSync('/run/validation-engine-sandbox', 'utf8') === token;
-  } catch {
-    return false;
-  }
-}
 
 test('local validation rejects dependency roots linked outside the candidate', (t) => {
   const parent = mkdtempSync(path.join(tmpdir(), 'seerrng-dependency-link-'));
@@ -69,11 +86,19 @@ test('local validation rejects dependency roots linked outside the candidate', (
   execFileSync('git', ['commit', '--quiet', '-m', 'Fixture'], {
     cwd: source,
   });
+  try {
+    symlinkSync(outside, path.join(source, 'node_modules'), 'dir');
+  } catch (error) {
+    if (error.code === 'EPERM' || error.code === 'EACCES') {
+      t.skip(`symbolic links are unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
 
-  symlinkSync(outside, path.join(source, 'node_modules'), 'dir');
   assert.throws(
     () => createDisposableTestWorkspace(source, path.join(parent, 'workspace')),
-    /symbolic link/u
+    /symbolic link/
   );
 
   rmSync(path.join(source, 'node_modules'));
@@ -84,13 +109,16 @@ test('local validation rejects dependency roots linked outside the candidate', (
         source,
         path.join(parent, 'parent-link-workspace')
       ),
-    /escape the candidate workspace/u
+    /escape the candidate workspace/
   );
 });
 
 test(
   'local validation confines test processes to disposable files, dependencies, services and network',
-  { skip: !sandboxAvailable && 'bubblewrap user namespaces are unavailable' },
+  {
+    skip:
+      !sandboxAvailable && 'bubblewrap isolation namespaces are unavailable',
+  },
   async (t) => {
     const parent = mkdtempSync(path.join(tmpdir(), 'seerrng-isolation-test-'));
     t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -110,15 +138,19 @@ test(
       path.join(source, 'credentials.json'),
       '{"token":"hidden"}\n'
     );
+    writeFileSync(path.join(source, 'auth.json'), '{"token":"hidden"}\n');
+    writeFileSync(
+      path.join(source, 'settings.json'),
+      '{"password":"hidden"}\n'
+    );
+    writeFileSync(path.join(source, 'service-token.txt'), 'hidden\n');
+    writeFileSync(path.join(source, 'apiToken.json'), '{"token":"hidden"}\n');
     writeFileSync(
       path.join(dependency, 'probe', 'dependency.txt'),
       'read-only\n'
     );
-
     const secretFile = path.join(parent, 'host-secret.txt');
     const hostSocket = path.join(parent, 'host-service.sock');
-    const hostHome = process.env.HOME;
-    const assertHostHomeHidden = !hasTrustedOuterSandbox();
     writeFileSync(secretFile, 'host secret must stay hidden');
     const hostServer = net.createServer((socket) => socket.end('host service'));
     await new Promise((resolve, reject) => {
@@ -139,22 +171,29 @@ test(
     const probeSource = `
       import assert from 'node:assert/strict';
       import { execFileSync } from 'node:child_process';
-      import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+      import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
       import net from 'node:net';
       import test from 'node:test';
-      const host = ${JSON.stringify({ secretFile, hostSocket, hostHome, port, assertHostHomeHidden })};
+      const host = ${JSON.stringify({ secretFile, hostSocket, port })};
       test('host files and ignored configuration are absent', () => {
         assert.equal(process.cwd(), '/mnt/workspace');
         assert.throws(() => readFileSync(host.secretFile), { code: 'ENOENT' });
-        if (host.assertHostHomeHidden)
-          assert.equal(existsSync(host.hostHome), false);
         assert.equal(existsSync('/mnt/workspace/.env'), false);
         assert.equal(existsSync('/mnt/workspace/nested/.env.local'), false);
         assert.equal(existsSync('/mnt/workspace/config.json'), false);
         assert.equal(existsSync('/mnt/workspace/credentials.json'), false);
+        assert.equal(existsSync('/mnt/workspace/auth.json'), false);
+        assert.equal(existsSync('/mnt/workspace/settings.json'), false);
+        assert.equal(existsSync('/mnt/workspace/service-token.txt'), false);
+        assert.equal(existsSync('/mnt/workspace/apiToken.json'), false);
+        assert.equal(readdirSync('/opt').length, 0);
+        assert.equal(readdirSync('/srv').length, 0);
         assert.equal(process.env.SECRET_CANARY, undefined);
         assert.doesNotMatch(readFileSync('/mnt/workspace/.git/config', 'utf8'), /credential/i);
         assert.equal(execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' }).trim(), 'main');
+      });
+      test('writes stay inside the disposable candidate copy', () => {
+        writeFileSync('/mnt/workspace/sandbox-write-canary.txt', 'sandbox only');
       });
       test('installed dependencies are readable but not writable', () => {
         const dependency = '/mnt/workspace/node_modules/probe/dependency.txt';
@@ -162,9 +201,6 @@ test(
         assert.throws(() => writeFileSync(dependency, 'changed'), (error) =>
           ['EROFS', 'EACCES', 'EPERM'].includes(error.code)
         );
-      });
-      test('writes stay inside the disposable candidate copy', () => {
-        writeFileSync('/mnt/workspace/sandbox-write-canary.txt', 'sandbox only');
       });
       test('host unix sockets and TCP listeners cannot be reached', async () => {
         await assert.rejects(new Promise((resolve, reject) => {

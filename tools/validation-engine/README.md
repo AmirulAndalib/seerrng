@@ -70,12 +70,17 @@ pnpm validate:development
   hosted-job, or pull-request metadata coverage.
 - Test subprocesses run from a disposable source copy inside Linux bubblewrap.
   The workspace and scratch outputs are the only writable host mounts; installed
-  dependencies are mounted read-only. The invoking user's home, temporary
-  files, service sockets, and network namespace are isolated, with loopback
-  available for tests that start local servers. The child environment is
-  allowlisted and receives private config/cache paths. This mode fails before
-  starting tests when bubblewrap or the required Linux namespaces are
-  unavailable; use hosted GitHub validation on other platforms.
+  dependencies are mounted read-only at their workspace paths to preserve
+  package resolution. Dependency roots must be real directories within the
+  candidate checkout; escaping symlinks fail closed. The invoking user's home,
+  temporary files, common service sockets, `/opt`, `/srv`, and the network
+  namespace are isolated, with loopback available for tests that start local
+  servers. The system root remains read-only for runtime tools; keep sensitive
+  data out of other host paths and use a disposable guest for highly untrusted
+  source. The child environment is allowlisted and receives private
+  config/cache paths.
+  This mode fails before starting tests when bubblewrap or the required Linux
+  namespaces are unavailable; use hosted GitHub validation on other platforms.
 - The in-repository CLI imports repository-owned JavaScript before it can start
   that subprocess boundary. For an unreviewed candidate, first copy
   `tools/validation-engine/trusted-test-launcher.mjs` from a reviewed revision
@@ -91,10 +96,12 @@ pnpm validate:development
 
   The external launcher snapshots tracked and non-ignored candidate files,
   excludes local configuration and credential files, and enters bubblewrap
-  before loading any candidate JavaScript. It mounts dependencies read-only and
-  fails closed if Linux bubblewrap isolation is unavailable. A candidate-owned
-  validator can still misreport its own test results, so this boundary protects
-  the host; it does not replace reviewing the validator itself.
+  before loading candidate JavaScript. It mounts dependencies read-only and
+  fails closed when Linux bubblewrap isolation is unavailable. Its internal
+  `--inside-sandbox` mode requires a token bound to a marker file mounted by the
+  trusted launcher. A candidate-owned validator can still misreport its own
+  test results, so this boundary protects the host; it does not replace
+  reviewing the validator itself.
 - With no mode flag, the engine admits the complete local staged gate. It runs
   only when the required source, dependency, toolchain, fixture, network, and
   browser-isolation boundaries can be proved. Otherwise it stops incomplete and

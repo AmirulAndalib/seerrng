@@ -15,6 +15,19 @@ const SANDBOX_SCRATCH = '/mnt/scratch';
 const SANDBOX_RUN = '/mnt/run-data';
 const SENSITIVE_SOURCE_PATH =
   /^(?:(?:.*\/)?\.env(?:$|\.(?!example$)[^/]+)|config(?:\.[^/]+)?(?:\/|$)|\.git(?:\/|$)|(?:.*\/)?(?:node_modules|\.ssh|\.aws|\.gnupg)(?:\/|$)|(?:.*\/)?(?:id_(?:rsa|ed25519)|credentials?(?:\.[^/]+)?|secrets?(?:\.[^/]+)?|\.git-credentials|\.npmrc|\.pypirc|\.netrc|[^/]+\.(?:pem|key))$)/i;
+const SENSITIVE_DATA_EXTENSION =
+  /\.(?:json|jsonc|ya?ml|toml|ini|cfg|conf|properties|txt|db|sqlite3?|pem|key)$/i;
+const SENSITIVE_DATA_NAME =
+  /(?:auth(?:entication)?|config|credentials?|passwords?|private|secrets?|settings?|tokens?)/i;
+
+function isSensitiveSourcePath(relativePath) {
+  if (SENSITIVE_SOURCE_PATH.test(relativePath)) return true;
+  const basename = relativePath.split(/[\\/]/u).at(-1);
+  return (
+    SENSITIVE_DATA_EXTENSION.test(basename) &&
+    SENSITIVE_DATA_NAME.test(basename)
+  );
+}
 
 function gitFiles(root) {
   const output = execFileSync(
@@ -33,11 +46,21 @@ function gitFiles(root) {
   return output.toString('utf8').split('\0').filter(Boolean).sort();
 }
 
+function isWithin(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === '' ||
+    (relative !== '..' &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  );
+}
+
 function copyCandidateFile(sourceRoot, targetRoot, relativePath) {
   if (
     path.isAbsolute(relativePath) ||
     relativePath.split(/[\\/]/u).includes('..') ||
-    SENSITIVE_SOURCE_PATH.test(relativePath)
+    isSensitiveSourcePath(relativePath)
   )
     return;
   const source = path.resolve(sourceRoot, relativePath);
@@ -65,16 +88,6 @@ function copyCandidateFile(sourceRoot, targetRoot, relativePath) {
     throw new Error(`Candidate source is not a regular file: ${relativePath}`);
   cpSync(source, target, { preserveTimestamps: true });
   chmodSync(target, stat.mode & 0o777);
-}
-
-function isWithin(root, candidate) {
-  const relative = path.relative(root, candidate);
-  return (
-    relative === '' ||
-    (relative !== '..' &&
-      !relative.startsWith(`..${path.sep}`) &&
-      !path.isAbsolute(relative))
-  );
 }
 
 export function createDisposableTestWorkspace(sourceRoot, workspaceRoot) {
@@ -279,7 +292,11 @@ export function createBubblewrapCommand(
     '--tmpfs',
     '/sys',
     '--tmpfs',
-    '/media'
+    '/media',
+    '--tmpfs',
+    '/opt',
+    '--tmpfs',
+    '/srv'
   );
 
   const runTarget = `${SANDBOX_RUN}/config`;
