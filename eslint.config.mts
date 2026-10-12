@@ -1,7 +1,6 @@
 import js from '@eslint/js';
-import nextPlugin from '@next/eslint-plugin-next';
 import prettier from 'eslint-config-prettier';
-import formatjs from 'eslint-plugin-formatjs';
+import formatjs from './scripts/eslint/formatjs-no-offset.mjs';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noRelativeImportPaths from 'eslint-plugin-no-relative-import-paths';
 import reactPlugin from 'eslint-plugin-react';
@@ -44,11 +43,8 @@ export default defineConfig(
       'react-hooks': reactHooks as Plugin,
       formatjs,
       'no-relative-import-paths': noRelativeImportPaths,
-      '@next/next': nextPlugin,
     },
     rules: {
-      ...nextPlugin.configs.recommended.rules,
-
       // TypeScript
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-use-before-define': 'off',

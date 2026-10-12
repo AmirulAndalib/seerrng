@@ -2762,7 +2762,7 @@ const validateCurrentBatchContract = (files) => {
   );
   requirePublicCommand(
     'build:server',
-    'tsc --project server/tsconfig.json && copyfiles -u 2 server/templates/**/*.{html,pug} dist/templates && copyfiles -u 2 "server/i18n/locale/*.json" dist/i18n && tsc-alias -p server/tsconfig.json && node scripts/replace-server-import-aliases.mjs dist',
+    'tsc --project server/tsconfig.json && copyfiles -u 2 server/templates/**/*.{html,pug} dist/templates && copyfiles -u 2 "server/i18n/locale/*.json" dist/i18n && node scripts/replace-server-import-aliases.mjs dist',
     'the public server build must retain upstream compilation, resources and alias resolution'
   );
   requirePublicCommand(
@@ -2786,16 +2786,28 @@ const validateCurrentBatchContract = (files) => {
     'the translation command must retain its actual validator'
   );
   if (
-    typeof publicScripts.dev !== 'string' ||
-    !publicScripts.dev.startsWith('nodemon ') ||
-    !publicScripts.dev.includes(
-      '--project server/tsconfig.json server/index.ts'
-    )
+    publicScripts.dev !== 'node scripts/dev-server.mjs' ||
+    publicScripts['dev:server'] !== 'node scripts/dev-server.mjs'
   ) {
     errors.push(
-      'package.json: public development must retain the upstream watched server entry point'
+      'package.json: public development must retain the local server watcher'
     );
   }
+  requireText(
+    'scripts/dev-server.mjs',
+    "new Set(['.ts', '.json', '.yml'])",
+    'the development watcher must preserve supported server file extensions'
+  );
+  requireText(
+    'scripts/dev-server.mjs',
+    "'server/index.ts'",
+    'the development watcher must preserve the server entry point'
+  );
+  requireText(
+    'bin/run-tooling-tests.mjs',
+    'scripts/dev-server.test.mjs',
+    'the tooling suite must cover the local development watcher'
+  );
   for (const check of [
     'check-current-batch-contract.js',
     'check-refreshed-ui-style.js',

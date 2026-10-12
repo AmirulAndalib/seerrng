@@ -20,7 +20,9 @@ import {
   discoverTests,
   executePlan,
   expectedPackageBindings,
+  formatValidationProgress,
   frameworkOf,
+  hasLiveLinuxProcessGroupMembers,
   isolatedEnvironment,
   loadTypeScript,
   preflight,
@@ -907,6 +909,34 @@ test('native subprocess failures propagate their actual exit status and zero-sum
   assert.throws(() => testCount('Done!'), /Missing native/);
 });
 
+test('live validation progress summarizes completed cases and the active step', () => {
+  const totals = new Map([['vitest', { total: 10, active: 8 }]]);
+  assert.equal(
+    formatValidationProgress('sample', 3, 1, totals, { name: 'Long test step' }, 65_000),
+    '[validation] sample: 1/3 steps complete; completed test cases 8/10; running Long test step (1m05s)',
+  );
+});
+
+test('executePlan emits progress before and after each step', async () => {
+  const progress = [];
+  const plan = {
+    root,
+    steps: [{ name: 'fixture', command: process.execPath, args: [], kind: 'node-js' }],
+  };
+  await executePlan(plan, {
+    executor: async () => '# tests 2\n# pass 2\n# fail 0\n',
+    stdout: sink,
+    stderr: sink,
+    onProgress: (summary) => progress.push(summary),
+  });
+  assert.equal(progress.length, 2);
+  assert.match(progress[0], /^\[validation\] SeerrNG: 0\/1 steps complete; completed test cases 0\/0; running fixture \(\d+m\d{2}s\)$/u);
+  assert.equal(
+    progress[1],
+    '[validation] SeerrNG: 1/1 steps complete; completed test cases 2/2',
+  );
+});
+
 test('CLI help succeeds without discovery and malformed options fail before running checks', async () => {
   const command = {
     name: 'help',
@@ -1599,5 +1629,31 @@ test(
         error.preserveTemporary === true &&
         /descendants|termination/.test(error.message)
     );
+  }
+);
+
+test(
+  'Linux process-group cleanup ignores zombie-only groups but detects live members',
+  { skip: process.platform !== 'linux' },
+  (t) => {
+    const procRoot = mkdtempSync(join(tmpdir(), 'seerrng-proc-fixture-'));
+    t.after(() => rmSync(procRoot, { recursive: true, force: true }));
+    const writeProcess = (pid, state, group, command) => {
+      const directory = join(procRoot, String(pid));
+      mkdirSync(directory);
+      writeFileSync(
+        join(directory, 'stat'),
+        `${pid} (${command}) ${state} 1 ${group} ${group} 0\n`
+      );
+    };
+
+    writeProcess(31001, 'Z', 9001, 'Cypress) renderer');
+    writeProcess(31002, 'X', 9001, 'Xvfb');
+    writeFileSync(join(procRoot, '31004'), 'transient process entry\n');
+    assert.equal(hasLiveLinuxProcessGroupMembers(9001, procRoot), false);
+    assert.equal(hasLiveLinuxProcessGroupMembers(9002, procRoot), false);
+
+    writeProcess(31003, 'S', 9001, 'Cypress renderer');
+    assert.equal(hasLiveLinuxProcessGroupMembers(9001, procRoot), true);
   }
 );

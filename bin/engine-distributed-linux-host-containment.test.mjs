@@ -18,6 +18,7 @@ import {
   createDistributedLinuxHostContainmentPlan,
   createDistributedLinuxProofParentConfig,
   createDistributedLinuxProofSocketAdapter,
+  createMode1LinuxHostContainmentCallbacks,
   executeDistributedLinuxHostContainment,
 } from '../tools/validation-engine/runtime/distributed-linux-host-containment.mjs';
 // eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- Native tooling tests exercise the engine module directly.
@@ -414,6 +415,40 @@ function manifestFixture() {
   };
 }
 
+function mode1ManifestFixture() {
+  const fixture = manifestFixture();
+  const manifest = structuredClone(fixture.manifest);
+  manifest.schema = 'seerrng-mode1-local-containment/v1';
+  for (const key of [
+    'dependencyMountpoint',
+    'images',
+    'inputs',
+    'namePrefix',
+    'ownershipLabelKey',
+    'resources',
+  ])
+    delete manifest[key];
+  manifest.network.distributed = {
+    mode: 'disabled',
+    unitId: 'distributed-disabled',
+    runtimeApplicationKey: 'distributed-disabled',
+    endpoints: [],
+  };
+  const proofParentConfig = createDistributedLinuxProofParentConfig({
+    candidate: manifest.candidate,
+    dockerFixture: manifest.dockerFixture,
+    evidence: manifest.evidence,
+    inner: manifest.inner,
+    network: manifest.network,
+    outerDaemonId: manifest.outerDaemonId,
+    paths: manifest.paths,
+    proof: manifest.proof,
+    runId: manifest.runId,
+  });
+  manifest.proofParentConfig = proofParentConfig.value;
+  return { ...fixture, manifest, proofParentConfig };
+}
+
 function createPlan(fixture, options) {
   return createDistributedLinuxHostContainmentPlan(fixture.manifest, {
     ...options,
@@ -721,6 +756,21 @@ test('plan binds a fresh owner, exact mounts, corrected helper capabilities, and
 
 test('manifest mutations fail closed before Docker execution', () => {
   const fixture = manifestFixture();
+  const disabledDistributedPolicy = structuredClone(fixture.manifest);
+  disabledDistributedPolicy.network.distributed = {
+    ...disabledDistributedPolicy.network.distributed,
+    mode: 'disabled',
+    endpoints: [],
+  };
+  assert.throws(
+    () =>
+      createDistributedLinuxHostContainmentPlan(disabledDistributedPolicy, {
+        preparationRequest: fixture.preparationRequest,
+        uniqueToken: 'disabled-distributed-1',
+      }),
+    /Mode 3 requires configured distributed network leases/u
+  );
+
   const configMutation = structuredClone(fixture.manifest);
   configMutation.proofParentConfig.network.distributedEndpoints[0].port += 1;
   assert.throws(
@@ -834,6 +884,88 @@ test('callbacks prove boundaries and restore leases with operation-once semantic
   assert.equal(
     harness.requests.filter(({ op }) => op === 'distributed-end').length,
     1
+  );
+});
+
+test('Mode 1 reuses local host proofs and exposes no distributed lease callback', async () => {
+  const fixture = mode1ManifestFixture();
+  const harness = proofHarness(fixture);
+  const localTagRefsSha256 = sha256(
+    Buffer.from(`refs/tags/v1 ${hash40('5')}\n`)
+  );
+  harness.adapters.gitHistory = {
+    verifyEvidence: async () => ({
+      verified: true,
+      completeClosure: true,
+      sourceSha256: fixture.manifest.candidate.sourceSha256,
+      commit: fixture.manifest.candidate.commit,
+      version: 'test-local-git-proof-v1',
+      localTagRefsSha256,
+      remoteTagRefsSha256: localTagRefsSha256,
+      remoteRefsSha256: digest('a'),
+      evidenceSha256: fixture.manifest.gitHistory.evidenceSha256,
+    }),
+  };
+  const callbacks = createMode1LinuxHostContainmentCallbacks(
+    fixture.manifest,
+    harness.adapters
+  );
+  assert.deepEqual(Object.keys(callbacks).toSorted(), [
+    'verifyDockerFixture',
+    'verifyGitHistory',
+    'verifyNetworkBoundary',
+    'withRepositoryIsolation',
+  ]);
+
+  const candidate = fixture.manifest.candidate;
+  assert.equal(
+    (await callbacks.verifyNetworkBoundary({ candidate })).isolated,
+    true
+  );
+  assert.equal(
+    (await callbacks.verifyDockerFixture({ candidate })).daemonVerified,
+    true
+  );
+  assert.equal(
+    (
+      await callbacks.verifyGitHistory({
+        candidate,
+        localTagRefsSha256,
+      })
+    ).completeClosure,
+    true
+  );
+  let repositoryCalls = 0;
+  await callbacks.withRepositoryIsolation(
+    async () => {
+      repositoryCalls += 1;
+    },
+    {
+      candidate,
+      unitId: 'native-repository',
+    }
+  );
+  assert.equal(repositoryCalls, 1);
+  await callbacks.withRepositoryIsolation(
+    async () => {
+      repositoryCalls += 1;
+    },
+    {
+      candidate,
+      unitId: 'native-browser',
+    }
+  );
+  assert.equal(repositoryCalls, 2);
+  await assert.rejects(
+    callbacks.withRepositoryIsolation(async () => {}, {
+      candidate,
+      unitId: 'native-codeql',
+    }),
+    /Repository isolation context differs from containment/u
+  );
+  assert.equal(
+    harness.requests.some(({ op }) => op.startsWith('distributed-')),
+    false
   );
 });
 

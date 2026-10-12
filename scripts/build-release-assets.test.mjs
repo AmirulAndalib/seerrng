@@ -27,7 +27,7 @@ const createFixture = async () => {
   await fs.writeFile(path.join(root, 'dist', 'index.js'), 'fixture\n');
   await fs.writeFile(path.join(root, 'bin', 'prepare.mjs'), 'fixture\n');
   await fs.writeFile(
-    path.join(root, 'patches', 'eslint-plugin-formatjs@6.6.3.patch'),
+    path.join(root, 'patches', 'eslint-plugin-no-relative-import-paths@1.6.1.patch'),
     'fixture patch\n'
   );
   await fs.writeFile(path.join(root, 'public', 'asset.txt'), 'public\n');
@@ -47,7 +47,7 @@ const createFixture = async () => {
     ),
     ...[
       'dist/index.js',
-      'patches/eslint-plugin-formatjs@6.6.3.patch',
+      'patches/eslint-plugin-no-relative-import-paths@1.6.1.patch',
       'public/asset.txt',
       'package.json',
       'pnpm-lock.yaml',
@@ -69,7 +69,7 @@ const createFixture = async () => {
   );
   await fs.writeFile(
     path.join(executableDirectory, 'pnpm'),
-    '#!/bin/sh\nif [ "$1" = install ] && [ "$2" = --prod ]; then\n  test -f "$PWD/patches/eslint-plugin-formatjs@6.6.3.patch" || exit 1\n  ln -s "$PWD/public/asset.txt" "$PWD/public/internal-link"\nfi\nexit 0\n',
+    '#!/bin/sh\nif [ "$1" = install ] && [ "$2" = --prod ]; then\n  test -f "$PWD/patches/eslint-plugin-no-relative-import-paths@1.6.1.patch" || exit 1\n  ln -s "$PWD/public/asset.txt" "$PWD/public/internal-link"\nfi\nexit 0\n',
     { mode: 0o755 }
   );
   return { executableDirectory, root, script };

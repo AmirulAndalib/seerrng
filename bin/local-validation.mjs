@@ -45,15 +45,14 @@ export const expectedPackageBindings = Object.freeze({
   'build:all': 'run-p build:next build:server',
   'build:compile': 'run-p build:next:compile build:server:compile',
   'build:server:compile':
-    'tsc --project server/tsconfig.json && copyfiles -u 2 server/templates/**/*.{html,pug} dist/templates && copyfiles -u 2 "server/i18n/locale/*.json" dist/i18n && tsc-alias -p server/tsconfig.json && node scripts/replace-server-import-aliases.mjs dist',
+    'tsc --project server/tsconfig.json && copyfiles -u 2 server/templates/**/*.{html,pug} dist/templates && copyfiles -u 2 "server/i18n/locale/*.json" dist/i18n && node scripts/replace-server-import-aliases.mjs dist',
   'build:next:compile': 'next build --webpack',
   'build:server':
-    'tsc --project server/tsconfig.json && copyfiles -u 2 server/templates/**/*.{html,pug} dist/templates && copyfiles -u 2 "server/i18n/locale/*.json" dist/i18n && tsc-alias -p server/tsconfig.json && node scripts/replace-server-import-aliases.mjs dist',
+    'tsc --project server/tsconfig.json && copyfiles -u 2 server/templates/**/*.{html,pug} dist/templates && copyfiles -u 2 "server/i18n/locale/*.json" dist/i18n && node scripts/replace-server-import-aliases.mjs dist',
   'build:next': 'next build --webpack',
-  dev: "nodemon -e ts,json,yml --watch server --watch seerr-api.yml --exec 'ts-node -r tsconfig-paths/register --files --project server/tsconfig.json server/index.ts'",
+  dev: 'node scripts/dev-server.mjs',
   'dev:checked': 'pnpm dev',
-  'dev:server':
-    "nodemon -e ts,json,yml --watch server --watch seerr-api.yml --exec 'ts-node -r tsconfig-paths/register --files --project server/tsconfig.json server/index.ts'",
+  'dev:server': 'node scripts/dev-server.mjs',
   'test:node': 'node server/test/index.mts',
   'test:vitest': 'vitest run',
   'test:tooling': 'node bin/run-tooling-tests.mjs',
@@ -737,6 +736,21 @@ export function testCount(output) {
   };
 }
 
+function formatElapsed(milliseconds) {
+  const seconds = Math.floor(milliseconds / 1000);
+  return `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, '0')}s`;
+}
+
+export function formatValidationProgress(repository, totalSteps, completedSteps, totals, currentStep = null, elapsedMs = 0) {
+  const counts = [...totals.values()];
+  const cases = counts.reduce((sum, count) => sum + count.active, 0);
+  const totalCases = counts.reduce((sum, count) => sum + count.total, 0);
+  const active = currentStep
+    ? `; running ${currentStep.name} (${formatElapsed(elapsedMs)})`
+    : '';
+  return `[validation] ${repository}: ${completedSteps}/${totalSteps} steps complete; completed test cases ${cases}/${totalCases}${active}`;
+}
+
 function processError(receipt) {
   const message = !receipt.lifecycle.cleanupVerified
     ? `Validation interrupted; child cleanup uncertain: ${receipt.lifecycle.cleanupError}`
@@ -768,6 +782,51 @@ function commandLog(file, directory, sourceRoot) {
     throw new Error('Refusing unsafe or source-owned native log path');
   // Exclusive creation refuses an existing file or symlink; never overwrite logs.
   return { path: absolute, fd: openSync(absolute, 'wx', 0o600) };
+}
+
+export function hasLiveLinuxProcessGroupMembers(
+  processGroupId,
+  procRoot = '/proc'
+) {
+  if (!Number.isSafeInteger(processGroupId) || processGroupId < 1)
+    throw new Error('A positive Linux process-group ID is required');
+  // Numeric proc entries are PIDs. Avoid Dirent.isDirectory(): some procfs
+  // implementations fall back to lstat, which races with process exit.
+  for (const pid of readdirSync(procRoot)) {
+    if (!/^[1-9][0-9]*$/u.test(pid)) continue;
+    let stat;
+    try {
+      stat = readFileSync(join(procRoot, pid, 'stat'), 'utf8');
+    } catch (error) {
+      if (
+        error.code === 'ENOENT' ||
+        error.code === 'ENOTDIR' ||
+        error.code === 'ESRCH'
+      )
+        continue;
+      throw error;
+    }
+    // The command name is parenthesized and may contain spaces or ')'.
+    const commandEnd = stat.lastIndexOf(')');
+    if (commandEnd < 0)
+      throw new Error('Linux process stat record is malformed');
+    const fields = stat
+      .slice(commandEnd + 1)
+      .trim()
+      .split(/\s+/u);
+    const state = fields[0];
+    const observedGroup = Number(fields[2]);
+    if (
+      !/^[A-Za-z]$/u.test(state ?? '') ||
+      fields.length < 3 ||
+      !Number.isSafeInteger(observedGroup) ||
+      observedGroup < 0
+    )
+      throw new Error('Linux process stat fields are malformed');
+    if (observedGroup === processGroupId && state !== 'Z' && state !== 'X')
+      return true;
+  }
+  return false;
 }
 
 // Both short checks and long-lived disposable servers share this owned runner.
@@ -844,14 +903,16 @@ export function startCommand(step, options = {}) {
     receipt;
   const delay = (milliseconds) =>
     new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
-  const groupExists = () => {
+  const groupHasLiveMember = () => {
     try {
       process.kill(-child.pid, 0);
-      return true;
     } catch (error) {
       if (error.code === 'ESRCH') return false;
       throw error;
     }
+    return process.platform === 'linux'
+      ? hasLiveLinuxProcessGroupMembers(child.pid)
+      : true;
   };
   const terminate = () => {
     if (termination) return termination;
@@ -879,16 +940,16 @@ export function startCommand(step, options = {}) {
             );
           });
         } else {
-          if (!groupExists()) return;
+          if (!groupHasLiveMember()) return;
           process.kill(-child.pid, 'SIGTERM');
           const deadline = performance.now() + graceMs;
-          while (groupExists() && performance.now() < deadline)
+          while (groupHasLiveMember() && performance.now() < deadline)
             await delay(Math.min(25, graceMs));
-          if (groupExists()) process.kill(-child.pid, 'SIGKILL');
+          if (groupHasLiveMember()) process.kill(-child.pid, 'SIGKILL');
           const killDeadline = performance.now() + 1000;
-          while (groupExists() && performance.now() < killDeadline)
+          while (groupHasLiveMember() && performance.now() < killDeadline)
             await delay(25);
-          if (groupExists())
+          if (groupHasLiveMember())
             throw new Error(
               'Owned process group still present after termination'
             );
@@ -947,7 +1008,7 @@ export function startCommand(step, options = {}) {
     child.once('exit', () => {
       if (process.platform !== 'win32' && child.pid && !termination) {
         try {
-          if (groupExists()) {
+          if (groupHasLiveMember()) {
             cleanupError =
               'Native command left running process-group descendants';
             void terminate();
@@ -1094,6 +1155,7 @@ export async function executePlan(
     workers,
     collectFailures = false,
     caseLedgerObserver,
+    onProgress,
   } = {}
 ) {
   if (typeof collectFailures !== 'boolean')
@@ -1113,7 +1175,19 @@ export async function executePlan(
   const totals = new Map();
   const failures = [];
   const caseCoverage = new Map();
+  let completedSteps = 0;
   let preserveTemporary = false;
+  const reportProgress = (currentStep = null, startedAt = 0) => {
+    if (typeof onProgress !== 'function') return;
+    onProgress(formatValidationProgress(
+      'SeerrNG',
+      plan.steps.length,
+      completedSteps,
+      totals,
+      currentStep,
+      currentStep ? Date.now() - startedAt : 0,
+    ));
+  };
   try {
     for (const original of plan.steps) {
       if (signal?.aborted) throw new Error('Validation interrupted');
@@ -1141,13 +1215,22 @@ export async function executePlan(
         );
       }
       stdout.write(`\n[${step.name}]\n`);
-      const executionResult = await executor(step, {
-        root: plan.root,
-        env,
-        stdout,
-        stderr,
-        signal,
-      });
+      const stepStartedAt = Date.now();
+      reportProgress(step, stepStartedAt);
+      const heartbeat = setInterval(() => reportProgress(step, stepStartedAt), 60_000);
+      heartbeat.unref();
+      let executionResult;
+      try {
+        executionResult = await executor(step, {
+          root: plan.root,
+          env,
+          stdout,
+          stderr,
+          signal,
+        });
+      } finally {
+        clearInterval(heartbeat);
+      }
       const output = collectFailures ? executionResult.output : executionResult;
       let nativeCount;
       if (collectFailures && step.kind !== 'check') {
@@ -1274,6 +1357,8 @@ export async function executePlan(
           active: previous.active + count.active,
         });
       }
+      completedSteps += 1;
+      reportProgress();
     }
     for (const [kind, count] of totals) {
       const coverage = caseCoverage.get(kind);

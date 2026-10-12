@@ -13,6 +13,12 @@ import { fileURLToPath } from 'node:url';
 // eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- Native Node tooling cannot resolve the application's TS aliases.
 import { createNativeStageContext } from '../tools/validation-engine/runtime/native-stage-context.mjs';
 // eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- Native Node tooling cannot resolve the application's TS aliases.
+import {
+  MODE1_LOCAL_REQUEST_PATH_ENV,
+  MODE1_LOCAL_REQUEST_SHA256_ENV,
+  createMode1LocalRunnerOptions,
+} from '../tools/validation-engine/runtime/mode1-local-lifecycle.mjs';
+// eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- Native Node tooling cannot resolve the application's TS aliases.
 import { executeStagedValidation } from '../tools/validation-engine/runtime/staged-validation.mjs';
 // eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- Native Node tooling cannot resolve the application's TS aliases.
 import {
@@ -1546,6 +1552,7 @@ failures, partial output closure and zero active tests fail closed.\n`);
         if (has('--tests-only')) {
           const totals = await executePlan(plan, {
             signal: controller.signal,
+            onProgress: (summary) => process.stderr.write(`${summary}\n`),
           });
           for (const [lane, count] of totals)
             process.stdout.write(
@@ -1553,9 +1560,24 @@ failures, partial output closure and zero active tests fail closed.\n`);
             );
           process.stdout.write('\nLocal tests passed.\n');
         } else {
+          const localRequestConfigured = [
+            MODE1_LOCAL_REQUEST_PATH_ENV,
+            MODE1_LOCAL_REQUEST_SHA256_ENV,
+            'SEERR_MODE1_LOCAL_RUN_ID',
+          ].some((name) => process.env[name] !== undefined);
+          const localMode = localRequestConfigured
+            ? createMode1LocalRunnerOptions(root)
+            : null;
           context = await createNativeStageContext(root, {
-            runId: `local-${randomUUID()}`,
+            runId: localMode?.runId ?? `local-${randomUUID()}`,
             signal: controller.signal,
+            ...(localMode
+              ? {
+                  scratchParent: localMode.scratchParent,
+                  prerequisiteReferences: localMode.prerequisiteReferences,
+                  ...localMode.callbacks,
+                }
+              : {}),
           });
           if (context.report.blockedRequired.length) {
             for (const blocker of context.report.blockedRequired)

@@ -53,6 +53,36 @@ There is no public worker-count option. Internal host overrides exist only for
 reviewed engine integration and tests; ordinary baselines must use automatic
 capacity selection.
 
+Validation progress is written to stderr when each native step starts and
+finishes, with a once-per-minute heartbeat during long steps. The summary
+counts cases from completed native steps and names the active step separately;
+it does not estimate cases still running. GitHub Actions shows these updates
+in the live step log. Its rendered job summary is uploaded after the step
+finishes, as described in the [workflow commands documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary).
+
+For an isolated Mode 1 run, the proof parent may invoke this same no-flag
+entrypoint with an internal `seerrng-mode1-local-run-request/v1` request. The
+request path and SHA-256, run ID, source root, state/log roots, containment
+manifest, proof-parent config and readiness file are bound by the run. It also
+binds the public CodeQL model pack and the exact Playwright browser and Cypress
+cache paths. Those tool caches must be actual read-only mounts; their complete
+content closures are sealed and rechecked at each primary native stage boundary
+and after the full gate. Frozen source snapshots are checked around individual
+commands. The
+request is not a second runner or a public command-line mode, and it cannot
+select tests, replace commands, or reuse prior results.
+
+The contained proof process supplies only fixed network, disposable Docker
+fixture, and complete Git-history callbacks. Repository and browser suites run
+inside the loopback-only lease, which denies public and private provider probes
+for the duration of each suite and restores the baseline before evidence is
+accepted. A no-flag run still executes the existing four-stage gate. Use a
+disposable Linux guest when nested Docker requires a privileged daemon; the
+physical host's Docker socket, application data, accounts, queues, databases,
+and provider credentials must stay outside the guest. Public provider access
+is limited to the documented probes. This internal contract does not make
+Mode 3 active or authorize running the tests against live configuration.
+
 The `--github-*` modes shown by `--help` are internal GitHub Actions bindings,
 not manual replacements for the local commands.
 
@@ -415,7 +445,8 @@ and process ownership/cleanup evidence. Hosted execution retains GitHub's native
 job logs and, for work that reaches engine admission, case-qualified copies of
 the raw JUnit, native Node, Cypress, and Playwright result files alongside sealed
 admissions, evidence manifests, parsed closure summaries, success receipts, and
-attempt-scoped ledgers.
+attempt-scoped ledgers. On Linux, process groups containing only zombie or dead
+entries count as stopped; any remaining live member keeps cleanup incomplete.
 
 The operator-managed Linux validation host has a separate 48-hour retention
 policy for abandoned top-level `/tmp/seerrng-*` scratch paths. See
