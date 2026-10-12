@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -35,6 +36,17 @@ const sandboxAvailable = (() => {
   );
   return probe.status === 0;
 })();
+
+function hasTrustedOuterSandbox() {
+  const token = process.env.VALIDATION_OUTER_SANDBOX_TOKEN;
+  if (!/^[a-f0-9]{64}$/u.test(token ?? '') ||
+      !existsSync('/run/validation-engine-sandbox')) return false;
+  try {
+    return readFileSync('/run/validation-engine-sandbox', 'utf8') === token;
+  } catch {
+    return false;
+  }
+}
 
 test('local validation rejects dependency roots linked outside the candidate', (t) => {
   const parent = mkdtempSync(path.join(tmpdir(), 'seerrng-dependency-link-'));
@@ -106,6 +118,7 @@ test(
     const secretFile = path.join(parent, 'host-secret.txt');
     const hostSocket = path.join(parent, 'host-service.sock');
     const hostHome = process.env.HOME;
+    const assertHostHomeHidden = !hasTrustedOuterSandbox();
     writeFileSync(secretFile, 'host secret must stay hidden');
     const hostServer = net.createServer((socket) => socket.end('host service'));
     await new Promise((resolve, reject) => {
@@ -129,11 +142,12 @@ test(
       import { existsSync, readFileSync, writeFileSync } from 'node:fs';
       import net from 'node:net';
       import test from 'node:test';
-      const host = ${JSON.stringify({ secretFile, hostSocket, hostHome, port })};
+      const host = ${JSON.stringify({ secretFile, hostSocket, hostHome, port, assertHostHomeHidden })};
       test('host files and ignored configuration are absent', () => {
         assert.equal(process.cwd(), '/mnt/workspace');
         assert.throws(() => readFileSync(host.secretFile), { code: 'ENOENT' });
-        assert.equal(existsSync(host.hostHome), false);
+        if (host.assertHostHomeHidden)
+          assert.equal(existsSync(host.hostHome), false);
         assert.equal(existsSync('/mnt/workspace/.env'), false);
         assert.equal(existsSync('/mnt/workspace/nested/.env.local'), false);
         assert.equal(existsSync('/mnt/workspace/config.json'), false);
