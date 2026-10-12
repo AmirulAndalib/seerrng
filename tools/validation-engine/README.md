@@ -68,12 +68,33 @@ pnpm validate:development
 - `--tests-only` executes the local repository-test plan through its native
   runners. It does not claim CodeQL, production-build, Cypress, Playwright,
   hosted-job, or pull-request metadata coverage.
-- Test subprocesses receive an allowlisted environment and private temporary
-  home/config/cache paths. Common HTTP clients block non-loopback traffic and
-  fetch redirects fail closed, but this is not an OS sandbox: test code running
-  as the invoking OS user can still access that user's files and open raw
-  sockets. Run untrusted source only in a disposable guest with credentials and
-  provider data absent.
+- Test subprocesses run from a disposable source copy inside Linux bubblewrap.
+  The workspace and scratch outputs are the only writable host mounts; installed
+  dependencies are mounted read-only. The invoking user's home, temporary
+  files, service sockets, and network namespace are isolated, with loopback
+  available for tests that start local servers. The child environment is
+  allowlisted and receives private config/cache paths. This mode fails before
+  starting tests when bubblewrap or the required Linux namespaces are
+  unavailable; use hosted GitHub validation on other platforms.
+- The in-repository CLI imports repository-owned JavaScript before it can start
+  that subprocess boundary. For an unreviewed candidate, first copy
+  `tools/validation-engine/trusted-test-launcher.mjs` from a reviewed revision
+  to a location outside the checkout, then invoke that trusted copy with the
+  candidate path, for example:
+
+  ```sh
+  install -D -m 700 tools/validation-engine/trusted-test-launcher.mjs \
+    "$HOME/.local/lib/seerrng/trusted-test-launcher.mjs"
+  TMPDIR=/dev/shm node "$HOME/.local/lib/seerrng/trusted-test-launcher.mjs" \
+    /path/to/candidate
+  ```
+
+  The external launcher snapshots tracked and non-ignored candidate files,
+  excludes local configuration and credential files, and enters bubblewrap
+  before loading any candidate JavaScript. It mounts dependencies read-only and
+  fails closed if Linux bubblewrap isolation is unavailable. A candidate-owned
+  validator can still misreport its own test results, so this boundary protects
+  the host; it does not replace reviewing the validator itself.
 - With no mode flag, the engine admits the complete local staged gate. It runs
   only when the required source, dependency, toolchain, fixture, network, and
   browser-isolation boundaries can be proved. Otherwise it stops incomplete and

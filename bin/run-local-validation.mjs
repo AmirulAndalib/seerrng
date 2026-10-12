@@ -100,18 +100,26 @@ function hostedGithubInput(root) {
     readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')
   );
   const eventName = process.env.GITHUB_EVENT_NAME;
-  if (!['pull_request', 'push'].includes(eventName))
+  if (!['pull_request', 'push', 'workflow_dispatch'].includes(eventName))
     throw new Error(
-      'Hosted CI orchestration supports pull_request and push only'
+      'Hosted CI orchestration supports pull_request, push, and workflow_dispatch only'
     );
   const executionSha = git(root, ['rev-parse', 'HEAD']).trim();
   if (executionSha !== process.env.GITHUB_SHA)
     throw new Error('Checked GitHub execution SHA does not match GITHUB_SHA');
   const pullRequest = payload.pull_request;
   const headSha =
-    eventName === 'pull_request' ? pullRequest?.head?.sha : payload.after;
+    eventName === 'pull_request'
+      ? pullRequest?.head?.sha
+      : eventName === 'push'
+        ? payload.after
+        : process.env.GITHUB_SHA;
   const baseSha =
-    eventName === 'pull_request' ? pullRequest?.base?.sha : payload.before;
+    eventName === 'pull_request'
+      ? pullRequest?.base?.sha
+      : eventName === 'push'
+        ? payload.before
+        : git(root, ['rev-parse', '--verify', `${executionSha}^1`]).trim();
   if (!/^[a-f0-9]{40}$/.test(headSha ?? ''))
     throw new Error('Exact GitHub head SHA is missing');
   if (!/^[a-f0-9]{40}$/.test(baseSha ?? ''))
@@ -278,6 +286,7 @@ const flagOptions = new Set([
   '--plan',
   '--json',
   '--tests-only',
+  '--inside-sandbox',
   '--github-plan',
   '--github-admit',
   '--github-materialize-test-lane',
@@ -360,7 +369,7 @@ const optionContracts = {
   },
   'local-tests-only': {
     label: 'Local tests-only mode',
-    allowed: new Set(['--tests-only']),
+    allowed: new Set(['--tests-only', '--inside-sandbox']),
     requiredValues: [],
   },
   'local-plan': {
@@ -936,6 +945,16 @@ if (executedDirectly) {
 const has = (option) => options?.flags.has(option) ?? false;
 const value = (option) => options?.values.get(option);
 const repeated = (option) => options?.repeated.get(option) ?? [];
+
+function hasTrustedOuterSandboxMarker() {
+  const token = process.env.VALIDATION_OUTER_SANDBOX_TOKEN;
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/u.test(token)) return false;
+  try {
+    return readFileSync('/run/validation-engine-sandbox', 'utf8') === token;
+  } catch {
+    return false;
+  }
+}
 const pathValueOptions = new Set([
   '--active-config-marker',
   '--config-file',
@@ -1046,6 +1065,11 @@ if (!executedDirectly) {
   // Importing exposes focused command helpers without executing the CLI.
 } else if (!options) {
   // The parse error above is the complete fail-closed result.
+} else if (has('--inside-sandbox') && !hasTrustedOuterSandboxMarker()) {
+  process.stderr.write(
+    'The internal --inside-sandbox mode requires the trusted outer sandbox launcher.\n'
+  );
+  process.exitCode = 1;
 } else if (selectedMode.name === 'help') {
   process.stdout
     .write(`Usage: node bin/run-local-validation.mjs [--tests-only] [--plan [--json]]
@@ -1553,6 +1577,7 @@ failures, partial output closure and zero active tests fail closed.\n`);
       preflight(root, { testsOnly: has('--tests-only') });
       const plan = createPlan(root, {
         testsOnly: has('--tests-only'),
+        allowExternalDependencies: has('--tests-only'),
         canonicalTypescript: !has('--tests-only'),
       });
       if (has('--plan')) {
@@ -1580,11 +1605,15 @@ failures, partial output closure and zero active tests fail closed.\n`);
             );
         }
       } else {
-        printPlan(plan, process.stdout, { details: false });
+        printPlan(plan, process.stdout, {
+          details: false,
+          callerSandboxed: has('--inside-sandbox'),
+        });
         process.on('SIGINT', interrupt);
         process.on('SIGTERM', interrupt);
         if (has('--tests-only')) {
           const totals = await executePlan(plan, {
+            sandbox: !has('--inside-sandbox'),
             signal: controller.signal,
             onProgress: (summary) => process.stderr.write(`${summary}\n`),
           });
