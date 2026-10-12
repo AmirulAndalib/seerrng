@@ -5,7 +5,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -14,6 +13,8 @@ import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+// eslint-disable-next-line no-relative-import-paths/no-relative-import-paths -- This native Node test exercises the workspace boundary directly.
+import { createDisposableTestWorkspace } from '../tools/validation-engine/runtime/isolated-process.mjs';
 import { executePlan } from './local-validation.mjs';
 
 const bwrap = ['/usr/bin/bwrap', '/bin/bwrap'].find(existsSync);
@@ -64,14 +65,65 @@ const sandboxAvailable = (() => {
   return probe.status === 0;
 })();
 
+test('local validation rejects dependency roots linked outside the candidate', (t) => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'seerrng-dependency-link-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const source = path.join(parent, 'candidate');
+  const outside = path.join(parent, 'host-dependencies');
+  mkdirSync(source);
+  mkdirSync(outside);
+  writeFileSync(path.join(source, '.gitignore'), 'node_modules/\ngen-docs\n');
+  writeFileSync(path.join(outside, 'host-canary.txt'), 'must stay hidden\n');
+  mkdirSync(path.join(outside, 'node_modules'));
+  execFileSync('git', ['init', '--quiet', '--initial-branch=main'], {
+    cwd: source,
+  });
+  execFileSync('git', ['config', 'user.name', 'Fixture'], { cwd: source });
+  execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], {
+    cwd: source,
+  });
+  execFileSync('git', ['add', '--all'], { cwd: source });
+  execFileSync('git', ['commit', '--quiet', '-m', 'Fixture'], {
+    cwd: source,
+  });
+  try {
+    symlinkSync(outside, path.join(source, 'node_modules'), 'dir');
+  } catch (error) {
+    if (error.code === 'EPERM' || error.code === 'EACCES') {
+      t.skip(`symbolic links are unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+
+  assert.throws(
+    () => createDisposableTestWorkspace(source, path.join(parent, 'workspace')),
+    /symbolic link/
+  );
+
+  rmSync(path.join(source, 'node_modules'));
+  symlinkSync(outside, path.join(source, 'gen-docs'), 'dir');
+  assert.throws(
+    () =>
+      createDisposableTestWorkspace(
+        source,
+        path.join(parent, 'parent-link-workspace')
+      ),
+    /escape the candidate workspace/
+  );
+});
+
 test(
   'local validation confines test processes to disposable files, dependencies, services and network',
-  { skip: !sandboxAvailable && 'bubblewrap isolation namespaces are unavailable' },
+  {
+    skip:
+      !sandboxAvailable && 'bubblewrap isolation namespaces are unavailable',
+  },
   async (t) => {
     const parent = mkdtempSync(path.join(tmpdir(), 'seerrng-isolation-test-'));
     t.after(() => rmSync(parent, { recursive: true, force: true }));
     const source = path.join(parent, 'candidate');
-    const dependency = path.join(parent, 'installed-dependencies');
+    const dependency = path.join(source, 'node_modules');
     mkdirSync(source);
     mkdirSync(path.join(dependency, 'probe'), { recursive: true });
     writeFileSync(path.join(source, '.gitignore'), 'node_modules/\n');
@@ -82,15 +134,16 @@ test(
       '{"token":"hidden"}\n'
     );
     writeFileSync(path.join(source, 'auth.json'), '{"token":"hidden"}\n');
-    writeFileSync(path.join(source, 'settings.json'), '{"password":"hidden"}\n');
+    writeFileSync(
+      path.join(source, 'settings.json'),
+      '{"password":"hidden"}\n'
+    );
     writeFileSync(path.join(source, 'service-token.txt'), 'hidden\n');
-    writeFileSync(path.join(source, 'apiToken.json'), '{\"token\":\"hidden\"}\n');
+    writeFileSync(path.join(source, 'apiToken.json'), '{"token":"hidden"}\n');
     writeFileSync(
       path.join(dependency, 'probe', 'dependency.txt'),
       'read-only\n'
     );
-    symlinkSync(dependency, path.join(source, 'node_modules'), 'dir');
-
     const secretFile = path.join(parent, 'host-secret.txt');
     const hostSocket = path.join(parent, 'host-service.sock');
     writeFileSync(secretFile, 'host secret must stay hidden');

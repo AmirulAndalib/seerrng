@@ -15,13 +15,18 @@ const SANDBOX_SCRATCH = '/mnt/scratch';
 const SANDBOX_RUN = '/mnt/run-data';
 const SENSITIVE_SOURCE_PATH =
   /^(?:\.env(?:$|\.(?!example$))|config(?:\.[^/]+)?(?:\/|$)|\.git(?:\/|$)|(?:.*\/)?(?:node_modules|\.ssh|\.aws|\.gnupg)(?:\/|$)|(?:.*\/)?(?:id_(?:rsa|ed25519)|credentials?(?:\.[^/]+)?|secrets?(?:\.[^/]+)?|\.git-credentials|\.npmrc|\.pypirc|\.netrc|[^/]+\.(?:pem|key))$)/i;
-const SENSITIVE_DATA_EXTENSION = /\.(?:json|jsonc|ya?ml|toml|ini|cfg|conf|properties|txt|db|sqlite3?|pem|key)$/i;
-const SENSITIVE_DATA_NAME = /(?:auth(?:entication)?|config|credentials?|passwords?|private|secrets?|settings?|tokens?)/i;
+const SENSITIVE_DATA_EXTENSION =
+  /\.(?:json|jsonc|ya?ml|toml|ini|cfg|conf|properties|txt|db|sqlite3?|pem|key)$/i;
+const SENSITIVE_DATA_NAME =
+  /(?:auth(?:entication)?|config|credentials?|passwords?|private|secrets?|settings?|tokens?)/i;
 
 function isSensitiveSourcePath(relativePath) {
   if (SENSITIVE_SOURCE_PATH.test(relativePath)) return true;
   const basename = relativePath.split(/[\\/]/u).at(-1);
-  return SENSITIVE_DATA_EXTENSION.test(basename) && SENSITIVE_DATA_NAME.test(basename);
+  return (
+    SENSITIVE_DATA_EXTENSION.test(basename) &&
+    SENSITIVE_DATA_NAME.test(basename)
+  );
 }
 
 function gitFiles(root) {
@@ -39,6 +44,16 @@ function gitFiles(root) {
     { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 }
   );
   return output.toString('utf8').split('\0').filter(Boolean).sort();
+}
+
+function isWithin(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === '' ||
+    (relative !== '..' &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  );
 }
 
 function copyCandidateFile(sourceRoot, targetRoot, relativePath) {
@@ -135,7 +150,16 @@ export function createDisposableTestWorkspace(sourceRoot, workspaceRoot) {
   for (const relativePath of ['node_modules', 'gen-docs/node_modules']) {
     const source = path.join(sourceRoot, relativePath);
     if (!existsSync(source)) continue;
+    const sourceMetadata = lstatSync(source);
+    if (sourceMetadata.isSymbolicLink() || !sourceMetadata.isDirectory())
+      throw new Error(
+        `Installed dependency path must be a real directory, not a symbolic link: ${relativePath}`
+      );
     const dependency = realpathSync(source);
+    if (!isWithin(sourceRoot, dependency))
+      throw new Error(
+        `Installed dependencies escape the candidate workspace: ${relativePath}`
+      );
     if (!lstatSync(dependency).isDirectory())
       throw new Error(
         `Installed dependency path is not a directory: ${relativePath}`

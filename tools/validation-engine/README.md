@@ -70,7 +70,9 @@ pnpm validate:development
   hosted-job, or pull-request metadata coverage.
 - Test subprocesses run from a disposable source copy inside Linux bubblewrap.
   The workspace and scratch outputs are the only writable host mounts; installed
-  dependencies are mounted read-only. The invoking user's home, temporary
+  dependencies are mounted read-only, and dependency roots must be real
+  directories within the candidate checkout; escaping symlinks fail closed.
+  The invoking user's home, temporary
   files, common service sockets, `/opt`, `/srv`, and the network namespace are
   isolated, with loopback available for tests that start local servers. The
   system root remains read-only for runtime tools; keep sensitive data out of
