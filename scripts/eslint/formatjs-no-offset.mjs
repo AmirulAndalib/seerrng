@@ -97,22 +97,17 @@ function messagesForCall(node, settings) {
   if (name === 'defineMessages') {
     if (settings.excludeMessageDeclCalls) return [];
     const messageDictionary =
-      descriptor.type === 'Literal' && typeof descriptor.value === 'string'
+      getStaticString(descriptor) !== undefined
         ? values
         : descriptor;
     const messages = unwrapObjectExpression(messageDictionary);
     if (!messages) return [];
     return messages.properties.flatMap((property) => {
       if (property.type !== 'Property') return [];
-      const message =
-        getDefaultMessage(property.value) ??
-        (getStaticString(property.value) === undefined
-          ? undefined
-          : {
-              node: property.value,
-              value: getStaticString(property.value),
-            });
-      return message ? [message] : [];
+      const descriptorMessage = getDefaultMessage(property.value);
+      if (descriptorMessage) return [descriptorMessage];
+      const value = getStaticString(property.value);
+      return value === undefined ? [] : [{ node: property.value, value }];
     });
   }
 

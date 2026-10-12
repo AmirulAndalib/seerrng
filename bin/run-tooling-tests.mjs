@@ -78,6 +78,7 @@ const portableTests = [
   'scripts/commit-message-prompt.test.mjs',
   'scripts/dev-server.test.mjs',
   'scripts/eslint/formatjs-no-offset.test.mjs',
+  'scripts/eslint/nextjs-rules.test.mjs',
   'scripts/chart-workflow.test.mjs',
   'scripts/check-container-security.test.mjs',
   'scripts/bookshelf-media-move.test.mjs',

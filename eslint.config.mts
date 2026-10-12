@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import formatjs from './scripts/eslint/formatjs-no-offset.mjs';
+import nextjsRules from './scripts/eslint/nextjs-rules.mjs';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noRelativeImportPaths from 'eslint-plugin-no-relative-import-paths';
 import reactPlugin from 'eslint-plugin-react';
@@ -42,6 +43,7 @@ export default defineConfig(
       react: reactPlugin,
       'react-hooks': reactHooks as Plugin,
       formatjs,
+      '@next/next': nextjsRules,
       'no-relative-import-paths': noRelativeImportPaths,
     },
     rules: {
@@ -76,6 +78,7 @@ export default defineConfig(
 
       // Plugins
       'formatjs/no-offset': 'error',
+      '@next/next/no-location-assign-relative-destination': 'warn',
       'no-relative-import-paths/no-relative-import-paths': [
         'error',
         { allowSameFolder: true },

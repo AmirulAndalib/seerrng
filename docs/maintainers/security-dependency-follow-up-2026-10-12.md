@@ -21,6 +21,17 @@ These are dependency-removal mitigations, not claims that either upstream
 advisory has a fixed release. Lockfiles and reachability were checked after the
 replacements below.
 
+Both advisories are publicly disputed by their package maintainers. The `braces`
+maintainer argues that the reported recursion case is bounded by the parser's
+input-length limit and that untrusted callers should not supply glob patterns
+([issue #84](https://github.com/micromatch/braces/issues/84)). The
+`http-cache-semantics` maintainer argues that `Set-Cookie` does not itself
+prohibit shared caching under [RFC 9111 §7.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-7.3)
+and that `Cache-Control: private` controls cross-user reuse ([issue #56](https://github.com/kornelski/http-cache-semantics/issues/56)).
+GitHub still lists both advisories as high severity with no patched version as
+of this review. Removing the packages clears SeerrNG's dependency exposure
+without claiming the disputed exploit scenarios are independently confirmed.
+
 The docs lockfile audit also found `joi@17.13.7` through Docusaurus Utils
 Validation, from workspace override `joi: 17.13.7`. GitHub advisory
 [GHSA-wr44-6hxh-3jwq / CVE-2026-90771](https://github.com/advisories/GHSA-wr44-6hxh-3jwq)
@@ -38,8 +49,9 @@ reflect the dependency removals.
 
 ## Replacements
 
-- The application lint toolchain now uses Oxlint's Next.js rules instead of
-  `@next/eslint-plugin-next` and `eslint-config-next`.
+- Oxlint now runs the Next.js lint rules; the `no-location-assign-relative-
+  destination` check stays in the local ESLint plugin so that redirect check is
+  retained without bringing back the vulnerable `fast-glob` dependency path.
 - The only configured FormatJS lint rule, `formatjs/no-offset`, is implemented
   locally over `@formatjs/icu-messageformat-parser`; the FormatJS ESLint plugin
   and its optional Jest transformer peer are removed.
