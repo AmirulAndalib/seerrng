@@ -70,11 +70,11 @@ pnpm validate:development
   hosted-job, or pull-request metadata coverage.
 - Test subprocesses run from a disposable source copy inside Linux bubblewrap.
   The workspace and scratch outputs are the only writable host mounts; installed
-  dependencies are mounted read-only at their workspace paths to preserve
-  package resolution. Dependency roots must be real directories within the
-  candidate checkout; escaping symlinks fail closed. The invoking user's home,
-  temporary files, common service sockets, `/opt`, `/srv`, and the network
-  namespace are isolated, with loopback available for tests that start local
+  dependencies remain read-only while preserving package resolution. Dependency
+  roots must be real directories within the candidate checkout; escaping
+  symlinks fail closed. The invoking user's home,
+  temporary files, common service sockets, `/opt`, `/srv`, and the network namespace are
+  isolated, with loopback available for tests that start local
   servers. The system root remains read-only for runtime tools; keep sensitive
   data out of other host paths and use a disposable guest for highly untrusted
   source. The child environment is allowlisted and receives private
@@ -96,8 +96,9 @@ pnpm validate:development
 
   The external launcher snapshots tracked and non-ignored candidate files,
   excludes local configuration and credential files, and enters bubblewrap
-  before loading candidate JavaScript. It mounts dependencies read-only and
-  fails closed when Linux bubblewrap isolation is unavailable. Its internal
+  before loading candidate JavaScript. Its dependency roots are mounted
+  read-only at their original workspace paths, and it fails closed when Linux
+  bubblewrap isolation is unavailable. Its internal
   `--inside-sandbox` mode requires a token bound to a marker file mounted by the
   trusted launcher. A candidate-owned validator can still misreport its own
   test results, so this boundary protects the host; it does not replace
