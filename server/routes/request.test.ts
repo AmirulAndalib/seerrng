@@ -5694,6 +5694,51 @@ describe('PUT /request/:requestId', () => {
     );
   });
 
+  it('requires both user and request management to request for another user', async () => {
+    const userRepository = getRepository(User);
+    const target = await userRepository.save(
+      new User({
+        email: 'managed-target@seerr.dev',
+        username: 'managed-target',
+        avatar: 'https://example.com/avatar.png',
+        permissions: Permission.NONE,
+        userType: UserType.LOCAL,
+      })
+    );
+    const userManager = await userRepository.save(
+      new User({
+        email: 'user-manager@seerr.dev',
+        username: 'user-manager',
+        avatar: 'https://example.com/avatar.png',
+        permissions: Permission.MANAGE_USERS,
+        userType: UserType.LOCAL,
+      })
+    );
+    const requestManager = await userRepository.save(
+      new User({
+        email: 'request-manager@seerr.dev',
+        username: 'request-manager',
+        avatar: 'https://example.com/avatar.png',
+        permissions: Permission.MANAGE_REQUESTS,
+        userType: UserType.LOCAL,
+      })
+    );
+    const body = {
+      mediaType: MediaType.MOVIE,
+      mediaId: 8201,
+      userId: target.id,
+    };
+
+    await assert.rejects(
+      MediaRequest.request(body, userManager),
+      /do not have permission to modify the request user/
+    );
+    await assert.rejects(
+      MediaRequest.request(body, requestManager),
+      /do not have permission to modify the request user/
+    );
+  });
+
   it('does not transfer a request to a user without request permission', async () => {
     const owner = await getRepository(User).findOneByOrFail({ id: 2 });
     const target = await getRepository(User).save(
