@@ -4392,6 +4392,7 @@ requestRoutes.put<{ requestId: string }>(
                     }
 
                     request.status = MediaRequestStatus.APPROVED;
+                    request.failureReason = null;
                     request.modifiedBy = actor;
                   }
 
@@ -4659,6 +4660,7 @@ requestRoutes.post<{
               });
               request.status = MediaRequestStatus.APPROVED;
             }
+            request.failureReason = null;
             request.modifiedBy = actor;
             await requestRepository.save(request);
             await requestDispatchManager.enqueue(request.id);
