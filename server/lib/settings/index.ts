@@ -628,6 +628,10 @@ export interface NotificationAgentSlack extends NotificationAgentConfig {
   options: {
     webhookUrl: string;
     locale: AvailableLocale;
+    requestActionsEnabled?: boolean;
+    workspaceId?: string;
+    signingSecret?: string;
+    requestManagerMappings?: string;
   };
 }
 
@@ -1034,6 +1038,10 @@ class Settings {
             options: {
               webhookUrl: '',
               locale: 'en',
+              requestActionsEnabled: false,
+              workspaceId: '',
+              signingSecret: '',
+              requestManagerMappings: '',
             },
           },
           telegram: {
@@ -2039,6 +2047,10 @@ class Settings {
             options: {
               webhookUrl: '',
               locale: 'en',
+              requestActionsEnabled: false,
+              workspaceId: '',
+              signingSecret: '',
+              requestManagerMappings: '',
             },
           },
           telegram: {
