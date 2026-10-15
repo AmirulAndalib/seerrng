@@ -13,6 +13,7 @@ import { CogIcon, UserIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import type { LinkProps } from 'next/link';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { forwardRef } from 'react';
 import { useIntl } from 'react-intl';
 
@@ -46,6 +47,7 @@ ForwardedLink.displayName = 'ForwardedLink';
 const UserDropdown = () => {
   const intl = useIntl();
   const { user, revalidate } = useUser();
+  const router = useRouter();
   const { clearSession } = useNativeRuntime();
 
   const logout = async () => {
@@ -85,7 +87,8 @@ const UserDropdown = () => {
 
     if (response.data?.status === 'ok') {
       clearSession();
-      revalidate();
+      await revalidate(undefined, false);
+      await router.replace('/login');
     }
   };
 

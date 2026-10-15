@@ -172,13 +172,19 @@ const Login = ({
   // Effect that is triggered whenever `useUser`'s user changes. If we get a new
   // valid user, we redirect the user to the home page as the login was successful.
   useEffect(() => {
-    if (user) {
-      const returnTo = getSafeReturnPath(
+    if (user && router.isReady) {
+      const requested = getSafeReturnPath(
         Array.isArray(router.query.returnTo)
           ? router.query.returnTo[0]
           : router.query.returnTo
       );
-      router.push(returnTo ?? '/');
+      // The browser carries a fragment through the sign-in redirect; restore it
+      // only when the saved destination does not already have one.
+      const withFragment =
+        requested && !requested.includes('#')
+          ? getSafeReturnPath(`${requested}${window.location.hash}`)
+          : undefined;
+      router.push(withFragment ?? requested ?? '/');
     }
   }, [user, router]);
 
