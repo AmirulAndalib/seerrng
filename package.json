@@ -107,7 +107,7 @@
     "next": "16.3.8",
     "node-cache": "5.1.2",
     "node-schedule": "2.1.1",
-    "nodemailer": "10.0.9",
+    "nodemailer": "10.1.0",
     "openid-client": "^6.8.8",
     "openpgp": "6.3.1",
     "pg": "8.23.0",
