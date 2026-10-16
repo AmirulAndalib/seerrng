@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DataSource } from 'typeorm';
-import { AddUserRequestServices1791950000000 } from './1791950000000-AddUserRequestServices';
 import { CreateMediaServiceStatuses1791940000000 } from './1791940000000-CreateMediaServiceStatuses';
+import { AddUserRequestServices1791950000000 } from './1791950000000-AddUserRequestServices';
 
 test('request service migrations are rerunnable and reversible', async () => {
   const dataSource = await new DataSource({

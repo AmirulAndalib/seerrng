@@ -149,7 +149,7 @@ const MovieRequestModal = ({
     { type: 'or' }
   );
   const isAnimeTitle =
-    data?.keywords.some((keyword) => keyword.id === ANIME_KEYWORD_ID) ?? false;
+    data?.keywords?.some((keyword) => keyword.id === ANIME_KEYWORD_ID) ?? false;
   const isFailedManagerRepair =
     editRequest?.status === MediaRequestStatus.FAILED &&
     hasPermission(Permission.MANAGE_REQUESTS);
