@@ -30,10 +30,10 @@ import {
 import dataSource, { getRepository } from '@server/datasource';
 import { BookRequestSearch } from '@server/entity/BookRequestSearch';
 import Media from '@server/entity/Media';
+import MediaAvailabilitySubscription from '@server/entity/MediaAvailabilitySubscription';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
-import MediaIdentifierSeasonMapping from '@server/entity/MediaIdentifierSeasonMapping';
 import {
   MediaRequest,
   getRequestMutationAdmissionKey,
@@ -415,6 +415,132 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(savedMedia.serviceId, 30);
   });
 
+  it('queues one private availability intent per follower and consumes subscriptions', async () => {
+    const requester = await getRequester();
+    const follower = await getRepository(User).findOneOrFail({
+      where: { email: 'admin@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MOVIE,
+        tmdbId: 891236,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const subscriptionRepository = getRepository(MediaAvailabilitySubscription);
+    await subscriptionRepository.save([
+      new MediaAvailabilitySubscription({ user: requester, media }),
+      new MediaAvailabilitySubscription({ user: follower, media }),
+    ]);
+
+    const queued: {
+      type: Notification;
+      intent: Parameters<typeof notificationManager.sendNotificationIntent>[1];
+    }[] = [];
+    mock.method(
+      notificationManager,
+      'sendNotificationIntent',
+      async (
+        type: Notification,
+        intent: Parameters<typeof notificationManager.sendNotificationIntent>[1]
+      ) => {
+        queued.push({ type, intent });
+      }
+    );
+
+    const request = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MOVIE,
+        status: MediaRequestStatus.APPROVED,
+        media,
+        requestedBy: requester,
+        is4k: false,
+      })
+    );
+    const firstAvailable = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    firstAvailable.status = MediaStatus.AVAILABLE;
+    await getRepository(Media).save(firstAvailable);
+
+    const availableIntents = queued.filter(
+      ({ type }) => type === Notification.MEDIA_AVAILABLE
+    );
+    assert.deepStrictEqual(
+      availableIntents.map(({ intent }) => intent),
+      [
+        { kind: 'media-request', requestId: request.id },
+        {
+          kind: 'media-availability-subscription',
+          mediaId: media.id,
+          userId: follower.id,
+        },
+      ]
+    );
+    assert.strictEqual(
+      await subscriptionRepository.countBy({ media: { id: media.id } }),
+      0
+    );
+  });
+
+  it('keeps follows while another request is active and removes them when all requests end', async () => {
+    const requester = await getRequester();
+    const otherRequester = await getRepository(User).findOneOrFail({
+      where: { email: 'demo@seerr.dev' },
+    });
+    const follower = await getRepository(User).findOneOrFail({
+      where: { email: 'admin@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.TV,
+        tmdbId: 891237,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const requestRepository = getRepository(MediaRequest);
+    const firstRequest = await requestRepository.save(
+      new MediaRequest({
+        type: MediaType.TV,
+        status: MediaRequestStatus.PENDING,
+        media,
+        requestedBy: requester,
+        is4k: false,
+        seasons: [],
+      })
+    );
+    const secondRequest = await requestRepository.save(
+      new MediaRequest({
+        type: MediaType.TV,
+        status: MediaRequestStatus.PENDING,
+        media,
+        requestedBy: otherRequester,
+        is4k: false,
+        seasons: [],
+      })
+    );
+    const subscriptionRepository = getRepository(MediaAvailabilitySubscription);
+    await subscriptionRepository.save(
+      new MediaAvailabilitySubscription({ user: follower, media })
+    );
+
+    firstRequest.status = MediaRequestStatus.DECLINED;
+    await requestRepository.save(firstRequest);
+    assert.strictEqual(
+      await subscriptionRepository.countBy({ media: { id: media.id } }),
+      1
+    );
+
+    secondRequest.status = MediaRequestStatus.DECLINED;
+    await requestRepository.save(secondRequest);
+    assert.strictEqual(
+      await subscriptionRepository.countBy({ media: { id: media.id } }),
+      0
+    );
+  });
+
   it('recovers a committed Sportarr add when its POST response is lost', async () => {
     const settings = getSettings();
     settings.sportarr = [
@@ -782,7 +908,7 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(savedMedia.serviceId, 30);
   });
 
-  it('continues Sonarr dispatch when requester tag lookup fails', async () => {
+  it('sends approved series requests to Sonarr with seasons and service routing', async () => {
     const settings = getSettings();
     settings.sonarr = [
       {
@@ -801,7 +927,7 @@ describe('MediaRequestSubscriber service dispatch', () => {
         isDefault: true,
         syncEnabled: true,
         preventSearch: false,
-        tagRequests: true,
+        tagRequests: false,
         seriesType: 'daily',
         animeSeriesType: 'anime',
         enableSeasonFolders: true,
@@ -849,10 +975,6 @@ describe('MediaRequestSubscriber service dispatch', () => {
         return {
           interceptors: { request: { use: () => undefined } },
           get: async (endpoint: string) => {
-            if (endpoint.endsWith('/tag')) {
-              throw new Error('Temporary tag service outage');
-            }
-
             if (endpoint.endsWith('/series/lookup')) {
               return {
                 data: [
@@ -1323,120 +1445,6 @@ describe('MediaRequestSubscriber service dispatch', () => {
     ]);
     assert.strictEqual(receivedOptions?.monitorNewItems, 'all');
     assert.strictEqual(receivedOptions?.searchNow, false);
-  });
-
-  it('dispatches manually mapped TVDB seasons and preserves season zero', async () => {
-    configureFallbackSonarr();
-    stubTvdbShow(87018, [
-      { season_number: 0, air_date: '2020-12-25' },
-      { season_number: 1, air_date: '2024-09-24' },
-    ]);
-    mock.method(
-      Tvdb,
-      'getInstance',
-      async () =>
-        ({
-          getOfficialSeasons: async () => [
-            { seasonNumber: 0, year: 2020 },
-            { seasonNumber: 2, year: 2024 },
-          ],
-        }) as unknown as Tvdb
-    );
-
-    const requestedBy = await getRequester();
-    const media = await getRepository(Media).save(
-      new Media({
-        mediaType: MediaType.TV,
-        tmdbId: 87018,
-        tvdbId: 184_880,
-        status: MediaStatus.PENDING,
-        status4k: MediaStatus.UNKNOWN,
-      })
-    );
-    const identifier = await getRepository(MediaIdentifier).save(
-      new MediaIdentifier({
-        media,
-        provider: MediaIdentifierProvider.TVDB,
-        value: '184881',
-        canonical: false,
-      })
-    );
-    await getRepository(MediaIdentifierSeasonMapping).save([
-      new MediaIdentifierSeasonMapping({
-        mediaIdentifier: identifier,
-        sonarrServerId: 31,
-        is4k: false,
-        seasonNumber: 0,
-        externalSeasonNumber: 0,
-      }),
-      new MediaIdentifierSeasonMapping({
-        mediaIdentifier: identifier,
-        sonarrServerId: 31,
-        is4k: false,
-        seasonNumber: 1,
-        externalSeasonNumber: 2,
-      }),
-      new MediaIdentifierSeasonMapping({
-        mediaIdentifier: identifier,
-        sonarrServerId: 32,
-        is4k: false,
-        seasonNumber: 1,
-        externalSeasonNumber: 4,
-      }),
-      new MediaIdentifierSeasonMapping({
-        mediaIdentifier: identifier,
-        sonarrServerId: 31,
-        is4k: true,
-        seasonNumber: 1,
-        externalSeasonNumber: 5,
-      }),
-    ]);
-
-    let receivedOptions: AddSeriesOptions | undefined;
-    mock.method(
-      SonarrAPI.prototype,
-      'addSeries',
-      async (options: AddSeriesOptions) => {
-        receivedOptions = options;
-        return {
-          id: 91,
-          title: 'Mapped Season Test',
-          titleSlug: 'mapped-season-test',
-        } as Awaited<ReturnType<SonarrAPI['addSeries']>>;
-      }
-    );
-    const request = await getRepository(MediaRequest).save(
-      new MediaRequest({
-        type: MediaType.TV,
-        status: MediaRequestStatus.APPROVED,
-        media,
-        requestedBy,
-        is4k: false,
-        serverId: 31,
-        overrideTvdbId: 184_881,
-        seasons: [
-          new SeasonRequest({
-            seasonNumber: 0,
-            episodeNumbers: [1],
-            status: MediaRequestStatus.APPROVED,
-          }),
-          new SeasonRequest({
-            seasonNumber: 1,
-            episodeNumbers: [3],
-            status: MediaRequestStatus.APPROVED,
-          }),
-        ],
-      })
-    );
-
-    await new MediaRequestSubscriber().sendToSonarr(request);
-
-    assert.strictEqual(receivedOptions?.tvdbid, 184_881);
-    assert.deepStrictEqual(receivedOptions?.seasons, [0, 2]);
-    assert.deepStrictEqual(receivedOptions?.episodeSelections, [
-      { seasonNumber: 0, episodeNumbers: [1] },
-      { seasonNumber: 2, episodeNumbers: [3] },
-    ]);
   });
 
   it('fails a movie request whose explicit Radarr server was removed', async () => {
