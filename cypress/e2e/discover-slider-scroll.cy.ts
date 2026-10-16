@@ -110,6 +110,14 @@ describe('Discover slider Back navigation', () => {
       .find('[data-testid=title-card]')
       .eq(3)
       .scrollIntoView({ offset: { top: 120, left: 0 } })
+      .then(($card) => {
+        const track = $card
+          .closest('[data-testid=media-slider]')
+          .find('.slider-track')[0] as HTMLDivElement;
+        trendingPosition = track.scrollLeft;
+
+        return $card;
+      })
       .trigger('mouseover')
       .click({ scrollBehavior: false });
     cy.wait('@details');
