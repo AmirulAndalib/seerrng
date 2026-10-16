@@ -75,6 +75,8 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
+        env:
+          CYPRESS_INSTALL_BINARY: 0
         run: |
           cd gen-docs
           pnpm install --frozen-lockfile
