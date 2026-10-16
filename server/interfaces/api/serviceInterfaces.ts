@@ -18,6 +18,8 @@ export interface ServiceCommonServer {
   activeAnimeLanguageProfileId?: number;
   activeTags?: number[];
   activeAnimeTags?: number[];
+  requestButtonLabel?: string;
+  requestButtonAnimeOnly?: boolean;
   serviceType?: 'ebook' | 'audiobook';
   provider?: BookshelfProvider;
   providerNotice?: string;
