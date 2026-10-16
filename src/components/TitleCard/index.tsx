@@ -869,17 +869,17 @@ const TitleCard = ({
     </div>
   );
   const blocklistControl = showHideButton && (
-    <Tooltip
-      content={intl.formatMessage(
-        isUpdating
-          ? messages.blocklistUpdatingDescription
-          : isBlocklisted
-            ? messages.blocklistRemoveDescription
-            : messages.blocklistAddDescription,
-        { title }
-      )}
-    >
-      <div data-poster-region="blocklist-slot">
+    <div data-poster-region="blocklist-slot">
+      <Tooltip
+        content={intl.formatMessage(
+          isUpdating
+            ? messages.blocklistUpdatingDescription
+            : isBlocklisted
+              ? messages.blocklistRemoveDescription
+              : messages.blocklistAddDescription,
+          { title }
+        )}
+      >
         <button
           type="button"
           className="poster-control poster-control-blocklist app-control-shadow-exempt"
@@ -908,8 +908,8 @@ const TitleCard = ({
             <EyeSlashIcon aria-hidden="true" />
           )}
         </button>
-      </div>
-    </Tooltip>
+      </Tooltip>
+    </div>
   );
 
   return (
@@ -1080,17 +1080,17 @@ const TitleCard = ({
               </div>
               <div data-poster-region="control-row">
                 {watchlistPreview ? (
-                  <Tooltip
-                    content={intl.formatMessage(
-                      watchlistPreviewDisabled
-                        ? messages.watchlistPreviewDisabled
-                        : previewWatchlisted
-                          ? messages.watchlistPreviewRemove
-                          : messages.watchlistPreviewAdd,
-                      { title }
-                    )}
-                  >
-                    <div data-poster-region="watchlist-slot">
+                  <div data-poster-region="watchlist-slot">
+                    <Tooltip
+                      content={intl.formatMessage(
+                        watchlistPreviewDisabled
+                          ? messages.watchlistPreviewDisabled
+                          : previewWatchlisted
+                            ? messages.watchlistPreviewRemove
+                            : messages.watchlistPreviewAdd,
+                        { title }
+                      )}
+                    >
                       <button
                         className="poster-control poster-control-watchlist poster-control-icon"
                         type="button"
@@ -1114,8 +1114,8 @@ const TitleCard = ({
                           <StarIcon aria-hidden="true" />
                         )}
                       </button>
-                    </div>
-                  </Tooltip>
+                    </Tooltip>
+                  </div>
                 ) : (
                   associationControls
                 )}
@@ -1156,14 +1156,14 @@ const TitleCard = ({
                   {canUseWatchlistActions &&
                     !watchlistPreview &&
                     user?.userType !== UserType.PLEX && (
-                      <Tooltip
-                        content={
-                          toggleWatchlist
-                            ? addWatchlistDescription
-                            : removeWatchlistDescription
-                        }
-                      >
-                        <div data-poster-region="watchlist-slot">
+                      <div data-poster-region="watchlist-slot">
+                        <Tooltip
+                          content={
+                            toggleWatchlist
+                              ? addWatchlistDescription
+                              : removeWatchlistDescription
+                          }
+                        >
                           {toggleWatchlist ? (
                             <Button
                               aria-busy={isUpdating}
@@ -1192,8 +1192,8 @@ const TitleCard = ({
                               <MinusCircleIcon />
                             </Button>
                           )}
-                        </div>
-                      </Tooltip>
+                        </Tooltip>
+                      </div>
                     )}
                 </div>
               </div>

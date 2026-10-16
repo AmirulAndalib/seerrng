@@ -589,7 +589,7 @@ const SettingsMain = () => {
                       type="text"
                       inputMode="numeric"
                       className="short"
-                      placeholder={50}
+                      placeholder="50"
                     />
                     {errors.blocklistedTagsLimit &&
                       touched.blocklistedTagsLimit &&
