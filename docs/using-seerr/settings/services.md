@@ -17,7 +17,7 @@ Seerr checks these linked servers to determine whether or not media has already 
 ### Radarr/Sonarr Settings
 
 :::warning
-**Only v3 & V4 Radarr/Sonarr servers are supported!** If your Radarr/Sonarr server is still running v2, you will need to upgrade in order to add it to Seerr.
+**Radarr v3/v4 and Sonarr v3/v4 are supported. Sonarr 5.0 beta is also supported through its v5 API.** SeerrNG detects the Sonarr version and retries the matching v3 route when a v5 route returns 404. The v5 beta API may change before stable release; v2 Radarr/Sonarr servers are not supported.
 ::::
 
 #### Default Server

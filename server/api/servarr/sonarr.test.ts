@@ -52,13 +52,145 @@ describe('Sonarr deletion-check inventory', () => {
   });
 });
 
-function buildSonarr(): SonarrAPI {
-  return new SonarrAPI({ url: 'http://localhost:8989/api/v3', apiKey: 'test' });
+function buildSonarr(version: 'v3' | 'v5' = 'v3'): SonarrAPI {
+  const api = new SonarrAPI({
+    url: 'http://localhost:8989/api/v3',
+    apiKey: 'test',
+  });
+  Object.defineProperty(api, 'getApiVersion', {
+    value: async () => version,
+  });
+  return api;
 }
 
 function getAxios(sonarr: SonarrAPI): AxiosInstance {
   return (sonarr as unknown as { axios: AxiosInstance }).axios;
 }
+
+describe('Sonarr API version selection', () => {
+  afterEach(() => mock.restoreAll());
+
+  it('uses the v5 API when the service reports Sonarr 5', async () => {
+    const api = new SonarrAPI({
+      url: 'http://127.0.0.1:9011/sonarr/api/v3',
+      apiKey: 'test',
+    });
+    const paths: string[] = [];
+    mock.method(getAxios(api), 'get', async (url: string) => {
+      paths.push(url);
+      if (url.endsWith('/api/v3/system/status')) {
+        return { data: { version: '5.0.0.2608' } };
+      }
+      if (url.endsWith('/api/v5/series')) {
+        return { data: [{ id: 42, title: 'Series', tvdbId: 100 }] };
+      }
+      throw new Error(`Unexpected Sonarr request: ${url}`);
+    });
+
+    const result = await api.getSeries();
+
+    assert.equal(result[0].title, 'Series');
+    assert.deepEqual(paths, [
+      'http://127.0.0.1:9011/sonarr/api/v3/system/status',
+      'http://127.0.0.1:9011/sonarr/api/v5/series',
+    ]);
+  });
+
+  it('can identify a v5-only server when the v3 status route is missing', async () => {
+    const api = new SonarrAPI({
+      url: 'http://127.0.0.1:9014/api/v3',
+      apiKey: 'test',
+    });
+    const paths: string[] = [];
+    mock.method(getAxios(api), 'get', async (url: string) => {
+      paths.push(url);
+      if (url.endsWith('/api/v3/system/status')) {
+        throw { response: { status: 404 } };
+      }
+      if (url.endsWith('/api/v5/system/status')) {
+        return { data: { version: '5.0.0.2608' } };
+      }
+      if (url.endsWith('/api/v5/series')) return { data: [] };
+      throw new Error(`Unexpected Sonarr request: ${url}`);
+    });
+
+    assert.deepEqual(await api.getSeries(), []);
+    assert.deepEqual(paths, [
+      'http://127.0.0.1:9014/api/v3/system/status',
+      'http://127.0.0.1:9014/api/v5/system/status',
+      'http://127.0.0.1:9014/api/v5/series',
+    ]);
+  });
+
+  it('refreshes the detected API version after its cache expires', async () => {
+    let now = 2_000_000_000;
+    let version = '4.0.20.3014';
+    mock.method(Date, 'now', () => now);
+    const api = new SonarrAPI({
+      url: 'http://127.0.0.1:9015/api/v3',
+      apiKey: 'test',
+    });
+    const paths: string[] = [];
+    mock.method(getAxios(api), 'get', async (url: string) => {
+      paths.push(url);
+      if (url.endsWith('/system/status')) return { data: { version } };
+      if (url.endsWith('/api/v3/series')) return { data: [] };
+      if (url.endsWith('/api/v5/series')) return { data: [] };
+      throw new Error(`Unexpected Sonarr request: ${url}`);
+    });
+
+    await api.getSeries();
+    version = '5.0.0.2608';
+    now += 5 * 60 * 1000 + 1;
+    await api.getSeries();
+
+    assert.deepEqual(paths, [
+      'http://127.0.0.1:9015/api/v3/system/status',
+      'http://127.0.0.1:9015/api/v3/series',
+      'http://127.0.0.1:9015/api/v3/system/status',
+      'http://127.0.0.1:9015/api/v5/series',
+    ]);
+  });
+
+  it('keeps v3 routes for v4 and falls back when a v5 route is missing', async () => {
+    const v4Api = new SonarrAPI({
+      url: 'http://127.0.0.1:9012/api/v3',
+      apiKey: 'test',
+    });
+    const v4Paths: string[] = [];
+    mock.method(getAxios(v4Api), 'get', async (url: string) => {
+      v4Paths.push(url);
+      if (url.endsWith('/system/status')) {
+        return { data: { version: '4.0.20.3014' } };
+      }
+      if (url.endsWith('/api/v3/series')) return { data: [] };
+      throw new Error(`Unexpected Sonarr request: ${url}`);
+    });
+    await v4Api.getSeries();
+    assert.ok(v4Paths.some((url) => url.endsWith('/api/v3/series')));
+    assert.ok(!v4Paths.some((url) => url.endsWith('/api/v5/series')));
+
+    const v5Api = new SonarrAPI({
+      url: 'http://127.0.0.1:9013/api/v3',
+      apiKey: 'test',
+    });
+    const v5Paths: string[] = [];
+    mock.method(getAxios(v5Api), 'get', async (url: string) => {
+      v5Paths.push(url);
+      if (url.endsWith('/system/status')) {
+        return { data: { version: '5.0.0.2608' } };
+      }
+      if (url.endsWith('/api/v5/series')) {
+        throw { response: { status: 404 } };
+      }
+      if (url.endsWith('/api/v3/series')) return { data: [] };
+      throw new Error(`Unexpected Sonarr request: ${url}`);
+    });
+    await v5Api.getSeries();
+    assert.ok(v5Paths.some((url) => url.endsWith('/api/v5/series')));
+    assert.ok(v5Paths.some((url) => url.endsWith('/api/v3/series')));
+  });
+});
 
 describe('Sonarr response normalization', () => {
   it('returns exact bounded series, season, and statistics records', () => {
@@ -509,6 +641,139 @@ describe('SonarrAPI exact episode requests', () => {
     );
     assert.deepStrictEqual(monitor.mock.calls[0].arguments[0], [101, 102]);
     assert.equal(search.mock.calls[0].arguments[0], 42);
+  });
+
+  it('uses the v5 season endpoint without loading every episode', async () => {
+    const api = buildSonarr('v5');
+    const existingSeries = series({
+      seasons: [{ seasonNumber: 1, monitored: false }],
+    });
+    mock.method(api, 'getSeriesByTvdbId', async () => existingSeries);
+    const puts = mock.method(
+      getAxios(api),
+      'put',
+      async (_url: string, payload: unknown) => ({
+        data: series({ ...existingSeries, ...(payload as object) }),
+      })
+    );
+    const getEpisodes = mock.method(api, 'getEpisodes', async () => []);
+
+    await api.addSeries({
+      tvdbid: 100,
+      title: 'Test Series',
+      profileId: 1,
+      seasons: [1],
+      episodeSelections: [{ seasonNumber: 1 }],
+      seasonFolder: true,
+      rootFolderPath: '/tv',
+      seriesType: 'standard',
+    });
+
+    assert.equal(getEpisodes.mock.callCount(), 0);
+    assert.ok(
+      !puts.mock.calls.some((call) =>
+        String(call.arguments[0]).endsWith('/api/v5/series')
+      )
+    );
+
+    const seasonRequest = puts.mock.calls.find((call) =>
+      String(call.arguments[0]).endsWith('/api/v5/series/42/season')
+    );
+    assert.ok(seasonRequest);
+    assert.deepEqual(seasonRequest.arguments[1], {
+      seasonNumber: 1,
+      monitored: true,
+    });
+  });
+
+  it('uses the v5 series editor for monitored and tag changes', async () => {
+    const api = buildSonarr('v5');
+    mock.method(api, 'getSeriesByTvdbId', async () =>
+      series({ seasons: [{ seasonNumber: 1, monitored: false }], tags: [7] })
+    );
+    const puts = mock.method(getAxios(api), 'put', async () => ({ data: [] }));
+
+    await api.addSeries({
+      tvdbid: 100,
+      title: 'Test Series',
+      profileId: 1,
+      seasons: [1],
+      tags: [8],
+      monitored: false,
+      seasonFolder: true,
+      rootFolderPath: '/tv',
+      seriesType: 'standard',
+    });
+
+    const editorRequest = puts.mock.calls.find((call) =>
+      String(call.arguments[0]).endsWith('/api/v5/series/editor')
+    );
+    assert.ok(editorRequest);
+    assert.deepEqual(editorRequest.arguments[1], {
+      seriesIds: [42],
+      monitored: false,
+      tags: [8],
+      applyTags: 'add',
+    });
+    assert.ok(
+      !puts.mock.calls.some((call) =>
+        String(call.arguments[0]).endsWith('/api/v5/series')
+      )
+    );
+  });
+
+  it('omits legacy language profiles when adding a series through v5', async () => {
+    const api = buildSonarr('v5');
+    mock.method(api, 'getSeriesByTvdbId', async () =>
+      series({ id: undefined, languageProfileId: 17 })
+    );
+    const post = mock.method(getAxios(api), 'post', async () => ({
+      data: { id: 99, title: 'Test Series', tvdbId: 100 },
+    }));
+
+    await api.addSeries({
+      tvdbid: 100,
+      title: 'Test Series',
+      profileId: 1,
+      languageProfileId: 17,
+      seasons: [1],
+      seasonFolder: true,
+      rootFolderPath: '/tv',
+      seriesType: 'standard',
+    });
+
+    const createPayload = post.mock.calls[0].arguments[1] as Record<
+      string,
+      unknown
+    >;
+    assert.ok(!('languageProfileId' in createPayload));
+  });
+
+  it('keeps legacy language profiles when adding a series through v3', async () => {
+    const api = buildSonarr();
+    mock.method(api, 'getSeriesByTvdbId', async () =>
+      series({ id: undefined, languageProfileId: 17 })
+    );
+    const post = mock.method(getAxios(api), 'post', async () => ({
+      data: { id: 99, title: 'Test Series', tvdbId: 100 },
+    }));
+
+    await api.addSeries({
+      tvdbid: 100,
+      title: 'Test Series',
+      profileId: 1,
+      languageProfileId: 17,
+      seasons: [1],
+      seasonFolder: true,
+      rootFolderPath: '/tv',
+      seriesType: 'standard',
+    });
+
+    const createPayload = post.mock.calls[0].arguments[1] as Record<
+      string,
+      unknown
+    >;
+    assert.equal(createPayload.languageProfileId, 17);
   });
 
   it('monitors and searches only the selected episodes', async () => {

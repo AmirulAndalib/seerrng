@@ -6,6 +6,7 @@ import {
   normalizeSafeRasterImage,
 } from '@server/utils/safeRemoteImage';
 import { redactSecrets } from '@server/utils/security';
+import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import ServarrBase, {
   isServarrServiceUrl,
   MAX_SERVARR_CONFIGURATION_RESULTS,
@@ -14,6 +15,7 @@ import ServarrBase, {
   MAX_SERVARR_LOOKUP_RESULTS,
   sanitizeServarrImages,
   sanitizeServarrRecordArray,
+  sanitizeServarrSystemStatus,
 } from './base';
 
 const MAX_SONARR_TEXT_LENGTH = 10_000;
@@ -35,6 +37,41 @@ const integerArray = (value: unknown): number[] =>
   (Array.isArray(value) ? value : [])
     .slice(0, MAX_SONARR_NESTED_RESULTS)
     .filter((item): item is number => Number.isSafeInteger(item));
+
+type SonarrApiVersion = 'v3' | 'v5';
+
+const SONARR_API_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_SONARR_API_VERSION_CACHE_ENTRIES = 1_000;
+const sonarrApiVersionCache = new Map<
+  string,
+  { version: SonarrApiVersion; expiresAt: number }
+>();
+
+const responseStatus = (error: unknown): number | undefined =>
+  isRecord(error) && isRecord(error.response)
+    ? integer(error.response.status)
+    : undefined;
+
+const buildSonarrApiUrl = (url: string, version: SonarrApiVersion): string => {
+  const parsedUrl = new URL(url);
+  const pathname = parsedUrl.pathname.replace(/\/+$/, '');
+
+  parsedUrl.pathname = /\/api\/v\d+$/i.test(pathname)
+    ? pathname.replace(/\/api\/v\d+$/i, `/api/${version}`)
+    : /\/api$/i.test(pathname)
+      ? `${pathname}/${version}`
+      : `${pathname}/api/${version}`;
+  parsedUrl.search = '';
+  parsedUrl.hash = '';
+
+  return parsedUrl.toString().replace(/\/$/, '');
+};
+
+const sonarrMajorVersion = (value: unknown): number => {
+  const version = sanitizeServarrSystemStatus(value).version;
+  const major = Number(version.match(/^(\d+)(?:\.|$)/)?.[1]);
+  return Number.isSafeInteger(major) ? major : 0;
+};
 
 const sanitizeSonarrSeason = (value: unknown): SonarrSeason | undefined => {
   if (!isRecord(value) || !Number.isSafeInteger(value.seasonNumber)) {
@@ -379,10 +416,123 @@ class SonarrAPI extends ServarrBase<{
   episode: EpisodeResult;
 }> {
   private coverBaseUrl: string;
+  private readonly apiV3Url: string;
+  private readonly apiV5Url: string;
+  private apiVersion?: {
+    version: SonarrApiVersion;
+    expiresAt: number;
+  };
+  private apiVersionPromise?: Promise<SonarrApiVersion>;
 
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
-    super({ url, apiKey, apiName: 'Sonarr', cacheName: 'sonarr' });
-    this.coverBaseUrl = SonarrAPI.buildCoverBaseUrl(url);
+    const apiV3Url = buildSonarrApiUrl(url, 'v3');
+    const apiV5Url = buildSonarrApiUrl(url, 'v5');
+    super({ url: apiV3Url, apiKey, apiName: 'Sonarr', cacheName: 'sonarr' });
+    this.apiV3Url = apiV3Url;
+    this.apiV5Url = apiV5Url;
+    this.coverBaseUrl = SonarrAPI.buildCoverBaseUrl(apiV3Url);
+  }
+
+  protected override async request<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    endpoint: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<AxiosResponse<T>> {
+    const version = await this.getApiVersion();
+    const baseURL =
+      config?.baseURL ?? (version === 'v5' ? this.apiV5Url : this.apiV3Url);
+    const requestConfig = { ...config, baseURL };
+
+    try {
+      return await super.request<T>(method, endpoint, data, requestConfig);
+    } catch (error) {
+      if (
+        version === 'v5' &&
+        config?.baseURL === undefined &&
+        responseStatus(error) === 404
+      ) {
+        // Sonarr v5 retains the v3 API, and a few endpoints were removed or
+        // replaced in v5. Keep those calls working while preferring v5 routes.
+        return super.request<T>(method, endpoint, data, {
+          ...config,
+          baseURL: this.apiV3Url,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  private async getApiVersion(): Promise<SonarrApiVersion> {
+    if (this.apiVersion && this.apiVersion.expiresAt > Date.now()) {
+      return this.apiVersion.version;
+    }
+    if (!this.apiVersionPromise) {
+      this.apiVersionPromise = this.resolveApiVersion();
+    }
+
+    try {
+      const version = await this.apiVersionPromise;
+      this.apiVersion = {
+        version,
+        expiresAt: Date.now() + SONARR_API_VERSION_CACHE_TTL_MS,
+      };
+      return version;
+    } finally {
+      this.apiVersionPromise = undefined;
+    }
+  }
+
+  private async resolveApiVersion(): Promise<SonarrApiVersion> {
+    const now = Date.now();
+    const cached = sonarrApiVersionCache.get(this.apiV3Url);
+    if (cached && cached.expiresAt > now) return cached.version;
+    for (const [url, entry] of sonarrApiVersionCache) {
+      if (entry.expiresAt <= now) sonarrApiVersionCache.delete(url);
+    }
+
+    let version: SonarrApiVersion;
+    try {
+      const response = await super.request<unknown>(
+        'GET',
+        '/system/status',
+        undefined,
+        { baseURL: this.apiV3Url }
+      );
+      try {
+        version = sonarrMajorVersion(response.data) >= 5 ? 'v5' : 'v3';
+      } catch {
+        // An unreadable version probe should preserve the existing v3 request
+        // path; the operation itself will report any real connection problem.
+        version = 'v3';
+      }
+    } catch (error) {
+      if (responseStatus(error) !== 404) {
+        version = 'v3';
+      } else {
+        try {
+          const response = await super.request<unknown>(
+            'GET',
+            '/system/status',
+            undefined,
+            { baseURL: this.apiV5Url }
+          );
+          version = sonarrMajorVersion(response.data) >= 5 ? 'v5' : 'v3';
+        } catch {
+          version = 'v3';
+        }
+      }
+    }
+
+    if (sonarrApiVersionCache.size >= MAX_SONARR_API_VERSION_CACHE_ENTRIES) {
+      sonarrApiVersionCache.delete(sonarrApiVersionCache.keys().next().value!);
+    }
+    sonarrApiVersionCache.set(this.apiV3Url, {
+      version,
+      expiresAt: now + SONARR_API_VERSION_CACHE_TTL_MS,
+    });
+    return version;
   }
 
   private static buildCoverBaseUrl(url: string): string {
@@ -687,6 +837,7 @@ class SonarrAPI extends ServarrBase<{
   public async addSeries(options: AddSeriesOptions): Promise<SonarrSeries> {
     try {
       const series = await this.getSeriesByTvdbId(options.tvdbid);
+      const apiVersion = await this.getApiVersion();
       const fullySelectedSeasons = options.episodeSelections
         ? options.episodeSelections
             .filter((selection) => selection.episodeNumbers === undefined)
@@ -704,16 +855,40 @@ class SonarrAPI extends ServarrBase<{
           series.seasons
         );
 
-        const newSeriesResponse = await this.request<SonarrSeries>(
-          'PUT',
-          '/series',
-          series
-        );
-        const updatedSeries = requireSonarrSeries(
-          isRecord(newSeriesResponse.data)
-            ? { ...series, ...newSeriesResponse.data }
-            : newSeriesResponse.data
-        );
+        let updatedSeries: SonarrSeries;
+        if (apiVersion === 'v5') {
+          const editorPayload: {
+            seriesIds: number[];
+            monitored?: boolean;
+            tags?: number[];
+            applyTags?: 'add';
+          } = { seriesIds: [series.id] };
+          if (options.monitored !== undefined) {
+            editorPayload.monitored = options.monitored;
+          }
+          if (options.tags?.length) {
+            editorPayload.tags = Array.from(new Set(options.tags));
+            editorPayload.applyTags = 'add';
+          }
+          if (
+            editorPayload.monitored !== undefined ||
+            editorPayload.tags !== undefined
+          ) {
+            await this.request('PUT', '/series/editor', editorPayload);
+          }
+          updatedSeries = series;
+        } else {
+          const newSeriesResponse = await this.request<SonarrSeries>(
+            'PUT',
+            '/series',
+            this.buildSeriesUpdatePayload(series)
+          );
+          updatedSeries = requireSonarrSeries(
+            isRecord(newSeriesResponse.data)
+              ? { ...series, ...newSeriesResponse.data }
+              : newSeriesResponse.data
+          );
+        }
 
         if (updatedSeries.id) {
           logger.info('Updated existing series in Sonarr.', {
@@ -734,11 +909,25 @@ class SonarrAPI extends ServarrBase<{
             );
           } else {
             try {
-              const episodes = await this.getEpisodes(updatedSeries.id);
+              const fallbackSeasons = new Set<number>();
+              for (const seasonNumber of new Set(options.seasons)) {
+                if (
+                  !(await this.setSeasonMonitoring(
+                    updatedSeries.id,
+                    seasonNumber
+                  ))
+                ) {
+                  fallbackSeasons.add(seasonNumber);
+                }
+              }
+
+              const episodes =
+                fallbackSeasons.size > 0
+                  ? await this.getEpisodes(updatedSeries.id)
+                  : [];
               const episodeIdsToMonitor = episodes
                 .filter(
-                  (ep) =>
-                    options.seasons.includes(ep.seasonNumber) && !ep.monitored
+                  (ep) => fallbackSeasons.has(ep.seasonNumber) && !ep.monitored
                 )
                 .map((ep) => ep.id);
 
@@ -776,34 +965,38 @@ class SonarrAPI extends ServarrBase<{
         }
       }
 
+      const createSeriesPayload: Partial<SonarrSeries> = {
+        tvdbId: options.tvdbid,
+        title: options.title,
+        qualityProfileId: options.profileId,
+        seasons: this.buildSeasonList(
+          fullySelectedSeasons,
+          series.seasons.map((season) => ({
+            seasonNumber: season.seasonNumber,
+            // We force all seasons to false if its the first request
+            monitored: false,
+          }))
+        ),
+        tags: options.tags,
+        seasonFolder: options.seasonFolder,
+        monitored: options.monitored,
+        monitorNewItems: options.monitorNewItems,
+        rootFolderPath: options.rootFolderPath,
+        seriesType: options.seriesType,
+        addOptions: {
+          ignoreEpisodesWithFiles: true,
+          searchForMissingEpisodes:
+            options.searchNow && !options.episodeSelections,
+        },
+      };
+      if (apiVersion === 'v3' && options.languageProfileId !== undefined) {
+        createSeriesPayload.languageProfileId = options.languageProfileId;
+      }
+
       const createdSeriesResponse = await this.request<SonarrSeries>(
         'POST',
         '/series',
-        {
-          tvdbId: options.tvdbid,
-          title: options.title,
-          qualityProfileId: options.profileId,
-          languageProfileId: options.languageProfileId,
-          seasons: this.buildSeasonList(
-            fullySelectedSeasons,
-            series.seasons.map((season) => ({
-              seasonNumber: season.seasonNumber,
-              // We force all seasons to false if its the first request
-              monitored: false,
-            }))
-          ),
-          tags: options.tags,
-          seasonFolder: options.seasonFolder,
-          monitored: options.monitored,
-          monitorNewItems: options.monitorNewItems,
-          rootFolderPath: options.rootFolderPath,
-          seriesType: options.seriesType,
-          addOptions: {
-            ignoreEpisodesWithFiles: true,
-            searchForMissingEpisodes:
-              options.searchNow && !options.episodeSelections,
-          },
-        } as Partial<SonarrSeries>
+        createSeriesPayload
       );
       const createdSeries = requireSonarrSeries(
         isRecord(createdSeriesResponse.data)
@@ -1031,6 +1224,31 @@ class SonarrAPI extends ServarrBase<{
     }
   }
 
+  public async setSeasonMonitoring(
+    seriesId: number,
+    seasonNumber: number,
+    monitored = true
+  ): Promise<boolean> {
+    if (!Number.isSafeInteger(seriesId) || seriesId <= 0) {
+      throw new Error('Invalid Sonarr series ID.');
+    }
+    if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 0) {
+      throw new Error('Invalid Sonarr season number.');
+    }
+    if ((await this.getApiVersion()) !== 'v5') return false;
+
+    try {
+      await this.request('PUT', `/series/${seriesId}/season`, {
+        seasonNumber,
+        monitored,
+      });
+      return true;
+    } catch (error) {
+      if (responseStatus(error) === 404) return false;
+      throw error;
+    }
+  }
+
   public async monitorEpisodes(episodeIds: number[]): Promise<void> {
     try {
       const normalizedEpisodeIds = Array.from(
@@ -1082,6 +1300,24 @@ class SonarrAPI extends ServarrBase<{
     selections: SeasonEpisodeSelection[],
     searchNow: boolean
   ): Promise<void> {
+    const fallbackSeasons = new Set<number>();
+    const fullSeasonNumbers = new Set(
+      selections
+        .filter((selection) => selection.episodeNumbers === undefined)
+        .map((selection) => selection.seasonNumber)
+    );
+    for (const seasonNumber of fullSeasonNumbers) {
+      if (!(await this.setSeasonMonitoring(seriesId, seasonNumber))) {
+        fallbackSeasons.add(seasonNumber);
+      }
+    }
+
+    const needsEpisodeDetails =
+      searchNow ||
+      fallbackSeasons.size > 0 ||
+      selections.some((selection) => selection.episodeNumbers !== undefined);
+    if (!needsEpisodeDetails) return;
+
     const episodes = await this.getEpisodes(seriesId);
     const selectedEpisodes = episodes.filter((episode) => {
       const selection = selections.find(
@@ -1094,7 +1330,16 @@ class SonarrAPI extends ServarrBase<{
       );
     });
     const episodeIdsToMonitor = selectedEpisodes
-      .filter((episode) => !episode.monitored)
+      .filter((episode) => {
+        const selection = selections.find(
+          (item) => item.seasonNumber === episode.seasonNumber
+        );
+        return (
+          !episode.monitored &&
+          (fallbackSeasons.has(episode.seasonNumber) ||
+            selection?.episodeNumbers !== undefined)
+        );
+      })
       .map((episode) => episode.id);
     if (episodeIdsToMonitor.length > 0) {
       await this.monitorEpisodes(episodeIdsToMonitor);
@@ -1130,6 +1375,17 @@ class SonarrAPI extends ServarrBase<{
 
     return newSeasons;
   }
+
+  private buildSeriesUpdatePayload(
+    series: SonarrSeries
+  ): Record<string, unknown> {
+    const payload = { ...series } as unknown as Record<string, unknown>;
+    delete payload.profileId;
+    delete payload.seasonCount;
+    delete payload.lastInfoSync;
+    return payload;
+  }
+
   public removeSeries = async (tvdbId: number): Promise<void> => {
     const { id, title } = await this.getSeriesByTvdbId(tvdbId);
 
