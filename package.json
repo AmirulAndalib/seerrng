@@ -91,7 +91,7 @@
     "email-templates": "13.0.1",
     "express": "5.2.1",
     "express-openapi-validator": "5.6.2",
-    "express-rate-limit": "8.7.0",
+    "express-rate-limit": "8.7.1",
     "express-session": "1.19.0",
     "formik": "^2.4.9",
     "gravatar-url": "4.0.2",
