@@ -236,8 +236,10 @@ const assertNeutralHeaderWrapper = (text) => {
     );
     if (ts.isJsxElement(header.parent)) {
       assert.equal(header.parent.openingElement.tagName.getText(), 'div');
-      const wrapperClassName = attribute(header.parent, 'className')
-        ?.initializer;
+      const wrapperClassName = attribute(
+        header.parent,
+        'className'
+      )?.initializer;
       assert.ok(
         !wrapperClassName ||
           (ts.isStringLiteralLike(wrapperClassName) &&
