@@ -61,8 +61,8 @@ README for supported architectures, storage mounts, and upgrade guidance
 before deploying; the container port is the port SeerrNG uses inside a shared
 Compose network.
 
-For book requests, BookshelfNG and ChaptarrNG are alternatives; BookshelfNG is
-the recommended Hardcover-backed setup. PC game acquisition and its SeerrNG
+For new book requests, use ChaptarrNG. Keep a BookshelfNG connection only while
+its existing library is being migrated. PC game acquisition and its SeerrNG
 catalog use QuestarrNG. ROM acquisition uses ROMarrNG; its optional IGDB
 catalog does not replace QuestarrNG for PC game acquisition. Follow each fork's
 SeerrNG setup instructions and use the linked NG image so its integration
