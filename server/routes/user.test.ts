@@ -21,6 +21,7 @@ import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import { UserPushSubscription } from '@server/entity/UserPushSubscription';
 import { UserSettings } from '@server/entity/UserSettings';
+import { Watchlist } from '@server/entity/Watchlist';
 import PreparedEmail from '@server/lib/email';
 import ImageProxy from '@server/lib/imageproxy';
 import { MAX_PERMISSION_VALUE, Permission } from '@server/lib/permissions';
@@ -1039,6 +1040,57 @@ describe('User route input validation', () => {
     const res = await agent.get('/user/not-a-number/watchlist');
 
     assert.strictEqual(res.status, 404);
+  });
+
+  it('filters another user’s local watchlist without crossing user boundaries', async () => {
+    const userRepository = getRepository(User);
+    const targetUser = await userRepository.findOneByOrFail({ id: 2 });
+    targetUser.plexToken = null;
+    await userRepository.save(targetUser);
+
+    const administrator = await userRepository.findOneByOrFail({ id: 1 });
+    const watchlistRepository = getRepository(Watchlist);
+    await watchlistRepository.save([
+      new Watchlist({
+        tmdbId: 8101,
+        mediaType: MediaType.MOVIE,
+        title: 'Profile Alpha',
+        requestedBy: targetUser,
+      }),
+      new Watchlist({
+        tmdbId: 8102,
+        mediaType: MediaType.MOVIE,
+        title: 'Profile Beta',
+        requestedBy: targetUser,
+      }),
+      new Watchlist({
+        tmdbId: 8103,
+        mediaType: MediaType.TV,
+        title: 'Profile Series',
+        requestedBy: targetUser,
+      }),
+      new Watchlist({
+        tmdbId: 8104,
+        mediaType: MediaType.MOVIE,
+        title: 'Profile Zulu',
+        requestedBy: administrator,
+      }),
+    ]);
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const response = await agent.get('/user/2/watchlist').query({
+      search: 'profile',
+      mediaType: MediaType.MOVIE,
+      sortBy: 'title-desc',
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.filtersSupported, true);
+    assert.strictEqual(response.body.totalResults, 2);
+    assert.deepStrictEqual(
+      response.body.results.map((item: { title: string }) => item.title),
+      ['Profile Beta', 'Profile Alpha']
+    );
   });
 
   it("does not use another user's Plex token after viewer permission revocation", async () => {
