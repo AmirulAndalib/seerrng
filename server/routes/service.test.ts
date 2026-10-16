@@ -266,6 +266,16 @@ function mockServarrTagsEndpoint(tags: { id: number; label: string }[]) {
   );
 }
 
+function mockSonarrApiVersion(version: 'v3' | 'v5' = 'v3') {
+  mock.method(
+    SonarrAPI.prototype as unknown as {
+      getApiVersion: () => Promise<'v3' | 'v5'>;
+    },
+    'getApiVersion',
+    async () => version
+  );
+}
+
 before(() => {
   app = createApp();
 });
@@ -1103,6 +1113,7 @@ describe('Sonarr settings routes', () => {
   });
 
   it('tests a Sonarr connection before the add form is complete', async () => {
+    mockSonarrApiVersion();
     mock.method(SonarrAPI.prototype, 'getSystemStatus', async () => ({
       appName: 'Sonarr',
       version: '4.0.0.0',
@@ -1138,6 +1149,7 @@ describe('Sonarr settings routes', () => {
   });
 
   it('uses the stored API key when testing an existing Sonarr', async () => {
+    mockSonarrApiVersion();
     let apiKeyUsed: string | undefined;
     getSettings().sonarr = [makeSonarr({ id: 7, apiKey: 'stored-key' })];
     mock.method(
