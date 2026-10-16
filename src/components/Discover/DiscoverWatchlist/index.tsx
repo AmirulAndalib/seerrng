@@ -395,6 +395,7 @@ const DiscoverWatchlist = () => {
         )}
       </div>
       <ListView
+        enableDiscoverNavigation
         plexItems={visibleTitles}
         isEmpty={isEmpty || (!hasMoreTitles && visibleTitles.length === 0)}
         isLoading={

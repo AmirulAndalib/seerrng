@@ -6667,6 +6667,8 @@ components:
           type: string
           example: '1234'
           nullable: true
+          description: |
+            Slider-specific configuration. For the built-in Networks slider, store a JSON array of up to 50 objects with a TMDB network `id`, `name`, safe TMDB `logoPath`, and optional `logoTone` (`color` or `white`) in display order. An empty string restores the default list; an empty JSON array displays no networks.
       required:
         - type
         - enabled
@@ -11393,7 +11395,7 @@ paths:
     put:
       summary: Update a single slider
       description: |
-        Updates a single slider and return the newly updated slider. Requires the `ADMIN` permission.
+        Updates a single slider and returns the newly updated slider. Requires the `ADMIN` permission. For the built-in Networks slider, only its validated network list data can be changed.
       tags:
         - settings
       parameters:
@@ -14204,10 +14206,22 @@ paths:
             type: string
             example: 18
         - in: query
+          name: excludeGenre
+          description: Set to true to exclude the selected genre from results.
+          schema:
+            type: string
+            enum: ['true']
+        - in: query
           name: studio
           schema:
             type: number
             example: 1
+        - in: query
+          name: excludeStudio
+          description: Set to true to exclude the selected movie studio from results.
+          schema:
+            type: string
+            enum: ['true']
         - in: query
           name: keywords
           schema:
@@ -14246,13 +14260,19 @@ paths:
             example: 120
         - in: query
           name: voteAverageGte
+          description: Minimum TMDB vote average from 0 to 10; fractional values are supported.
           schema:
             type: number
+            minimum: 0
+            maximum: 10
             example: 7
         - in: query
           name: voteAverageLte
+          description: Maximum TMDB vote average from 0 to 10; fractional values are supported.
           schema:
             type: number
+            minimum: 0
+            maximum: 10
             example: 10
         - in: query
           name: voteCountGte
@@ -14271,9 +14291,16 @@ paths:
             example: US
         - in: query
           name: watchProviders
+          description: Pipe-separated TMDB watch-provider IDs selected for the region.
           schema:
             type: string
             example: 8|9
+        - in: query
+          name: watchProviderMode
+          description: Include selected providers, or exclude titles available on them. Omitted means include.
+          schema:
+            type: string
+            enum: [include, exclude]
         - in: query
           name: certification
           schema:
@@ -14552,6 +14579,12 @@ paths:
             type: string
             example: 18
         - in: query
+          name: excludeGenre
+          description: Set to true to exclude the selected genre from results.
+          schema:
+            type: string
+            enum: ['true']
+        - in: query
           name: network
           schema:
             type: number
@@ -14594,13 +14627,19 @@ paths:
             example: 120
         - in: query
           name: voteAverageGte
+          description: Minimum TMDB vote average from 0 to 10; fractional values are supported.
           schema:
             type: number
+            minimum: 0
+            maximum: 10
             example: 7
         - in: query
           name: voteAverageLte
+          description: Maximum TMDB vote average from 0 to 10; fractional values are supported.
           schema:
             type: number
+            minimum: 0
+            maximum: 10
             example: 10
         - in: query
           name: voteCountGte
@@ -14619,14 +14658,27 @@ paths:
             example: US
         - in: query
           name: watchProviders
+          description: Pipe-separated TMDB watch-provider IDs selected for the region.
           schema:
             type: string
             example: 8|9
+        - in: query
+          name: watchProviderMode
+          description: Include selected providers, or exclude titles available on them. Omitted means include.
+          schema:
+            type: string
+            enum: [include, exclude]
         - in: query
           name: status
           schema:
             type: string
             example: 3|4
+        - in: query
+          name: excludeStatus
+          description: Set to true to exclude the selected TV status from results.
+          schema:
+            type: string
+            enum: ['true']
         - in: query
           name: certification
           schema:
