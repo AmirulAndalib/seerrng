@@ -345,7 +345,7 @@ export interface SonarrSettings extends DVRSettings {
   activeLanguageProfileId?: number;
   animeTags?: number[];
   enableSeasonFolders: boolean;
-  monitorNewItems: 'all' | 'none';
+  monitorNewItems: 'all' | 'none' | 'latest';
 }
 
 export interface SportarrSettings {

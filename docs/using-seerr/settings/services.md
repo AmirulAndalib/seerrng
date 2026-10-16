@@ -71,6 +71,16 @@ selected anime profile again and falls back to that same Sonarr service's
 default profile if the anime profile is missing or cannot be verified. The
 Services list shows the configured anime profile beneath the standard profile.
 
+#### Monitor New Seasons (Sonarr)
+
+Choose how Sonarr should monitor future seasons when SeerrNG adds a series:
+
+- **All** monitors future seasons for every requested series.
+- **None** leaves future seasons unmonitored.
+- **Latest Season Requested** monitors future seasons only when the request includes the latest regular season listed by TMDB. Specials do not count as regular seasons, and requests for older seasons alone do not enable future-season monitoring.
+
+This setting controls monitoring only. Automatic searches are controlled separately by **Enable Automatic Search**. If SeerrNG cannot identify a regular season, it uses **None** for that request.
+
 #### External URL (optional)
 
 If the hostname or IP address you configured above is not accessible outside your network, you can set a different URL here. This "external" URL is used to add clickable links to your Radarr/Sonarr servers on media detail pages.

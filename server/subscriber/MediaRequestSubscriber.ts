@@ -92,6 +92,7 @@ import {
 } from '@server/utils/bookshelfLookup';
 import { mapWithConcurrency } from '@server/utils/concurrency';
 import { withNestedTransaction } from '@server/utils/nestedTransaction';
+import { resolveSonarrMonitorNewItems } from '@server/utils/servarrSettings';
 import { isEqual } from 'lodash';
 import type {
   EntityManager,
@@ -1544,7 +1545,13 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           seriesType,
           tags,
           monitored: true,
-          monitorNewItems: sonarrSettings.monitorNewItems,
+          monitorNewItems: resolveSonarrMonitorNewItems(
+            sonarrSettings.monitorNewItems,
+            entity.seasons
+              .filter(isActiveSeasonRequest)
+              .map((season) => season.seasonNumber),
+            series.seasons.map((season) => season.season_number)
+          ),
           searchNow: !sonarrSettings.preventSearch,
         };
 
