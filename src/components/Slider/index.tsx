@@ -176,7 +176,9 @@ const Slider = ({
       !isActive ||
       isLoading ||
       hasRestoredHorizontalScrollRef.current ||
-      !container
+      !container ||
+      // Applying scrollLeft before cards exist clamps saved positions to zero.
+      !items?.length
     ) {
       return;
     }

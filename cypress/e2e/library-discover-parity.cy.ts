@@ -784,7 +784,7 @@ describe('Books and Music discover parity', () => {
       'be.visible'
     );
     cy.contains(
-      'Bookshelf is the recommended book backend. Readarr-compatible servers, including Chaptarr, can also be used. For Chaptarr, set Book Format to match the configured root folder; Seerr sends that format explicitly on every request.'
+      'ChaptarrNG is the maintained book backend for new installs. Existing BookshelfNG and other Readarr-compatible servers remain supported during migration. Set Book Format to match the configured root folder; Seerr sends that format explicitly on every request.'
     ).should('be.visible');
     cy.contains('a', 'Bookshelf Hardcover migration guide')
       .should(
